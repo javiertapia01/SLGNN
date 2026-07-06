@@ -1,0 +1,55 @@
+# Configuración de entrenamiento de SLGNN-v2 sobre 60Spheres_Gravity.
+# Rollout largo con curriculum, usando todos los canales y todas las pérdidas.
+# Ver Informe_Estrategia_Entrenamiento_SLGNN.md para el razonamiento.
+
+seed: 0
+
+data:
+  dataset: 60Spheres_Gravity_Inside_Cuboidal_Enclosure
+  train_cases: [CASE01, CASE02, CASE03, CASE04, CASE05]
+  val_case: CASE06
+  dt: 1.0e-4              # paso de grabado del dataset (s)
+  gravity: 9.81          # m/s²
+  gravity_axis: y        # eje de sedimentación verificado en los datos (−y)
+  box_min: [0.0, 0.0, 0.0]
+  box_max: [0.03, 0.03, 0.03]   # caja cúbica de 0.03 m (unidades reales)
+
+model:                   # sobrescribe defaults de SLGNNConfig; vacío = defaults
+  hidden: 32
+  layers: 2
+  use_history: true
+
+optim:
+  lr_warmup: 3.0e-3
+  lr_rollout: 1.0e-3
+  grad_clip: 1.0
+  weight_decay: 0.0
+
+# Curriculum: primero un warmup a un paso para estabilizar V y R, luego
+# ventanas de rollout de horizonte creciente (rollout "largo").
+curriculum:
+  warmup_iters: 200          # iteraciones de pérdida de aceleración a un paso
+  horizons: [4, 8, 16, 32, 64]
+  iters_per_horizon: 300
+  tbptt_chunk: 8             # profundidad de backprop-through-time truncado
+  windows_per_iter: 2        # ventanas (sistemas) promediadas por iteración
+
+# Pesos de las pérdidas (§34). L_res y L_pass mantienen suprimido el canal
+# histórico hasta que sea necesario; L_pen penaliza penetración en rollout.
+loss:
+  lambda_v: 1.0        # peso de velocidad dentro de L_roll
+  lambda_w: 0.5        # peso de velocidad angular dentro de L_roll
+  lambda_res: 0.1      # regularización del residual histórico
+  lambda_pass: 1.0     # pasividad del residual (restricción dura)
+  lambda_pen: 0.1      # no penetración
+  rollout_time_decay: 0.9   # peso alpha_s = decay^s por paso de rollout
+
+noise:
+  sigma_q: 0.02        # ruido de entrada en posición (diámetros) para rollout
+  sigma_v: 0.02        # ruido de entrada en velocidad (adimensional)
+
+log:
+  every: 25
+  val_every: 100
+  val_horizon: 100
+  ckpt_dir: checkpoints/gravity_rollout

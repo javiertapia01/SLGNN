@@ -54,6 +54,18 @@ Mini-entrenamiento de demostración (CPU, ~1-2 min):
 python scripts/mini_train.py
 ```
 
+Entrenamiento serio sobre 60 esferas con gravedad, rollout largo y todas las
+herramientas del modelo (canales V/R/H, rotación, pared SDF, las 6 pérdidas):
+
+```
+python scripts/train.py --config configs/gravity_rollout.yaml --smoke   # verificación rápida
+python scripts/train.py --config configs/gravity_rollout.yaml           # corrida completa
+```
+
+Los checkpoints (modelo + optimizador + config + sigmas de normalización) se
+guardan por fase en `checkpoints/`. La estrategia detrás del curriculum está
+en `Informe_Estrategia_Entrenamiento_SLGNN.md`.
+
 ## Dataset
 
 *6 DoF Dynamics: DEM Simulation Dataset for Learning GNN Surrogate Model*

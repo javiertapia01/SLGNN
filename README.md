@@ -16,8 +16,18 @@ data/
   extracted/   # datos descomprimidos (no versionado)
   DATA_NOTES.md
 src/slgnn/     # paquete principal
-tests/         # arnés de pruebas por canal
-notebooks/     # exploración
+  config.py      # hiperparámetros (unidades adimensionales)
+  cutoff.py      # ventana quintic C², compresión softplus, parte negativa suave
+  sdf.py         # BoxSDF, RotatingCylinderSDF con cinemática de pared explícita
+  graph.py       # lista de vecinos, geometría de pares, punto común de contacto
+  nets.py        # encoder material, processor escalar simétrico (solo invariantes)
+  model.py       # SLGNN: energías → Euler-Lagrange (autograd) + Rayleigh + canal H
+  integrator.py  # Euler semiimplícito + rollout
+  losses.py      # L_a, L_alpha, L_roll, L_res, L_pass, L_pen
+  data.py        # loader robusto a las 3 variantes de esquema + adimensionalización
+tests/         # garantías por construcción (§37): equivariancia SO(3),
+               # conservación de momento, disipación, acción-reacción
+scripts/       # mini_train.py: overfit del benchmark de 2 esferas
 requirements.txt
 ```
 
@@ -31,10 +41,17 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Smoke test:
+Instalar el paquete y correr los tests:
 
 ```
-python -c "import torch, torch_geometric; print(torch.__version__, torch_geometric.__version__)"
+pip install -e . --no-deps
+pytest -q
+```
+
+Mini-entrenamiento de demostración (CPU, ~1-2 min):
+
+```
+python scripts/mini_train.py
 ```
 
 ## Dataset

@@ -12,3 +12,5 @@ data/extracted/*
 
 *.zip
 *.log
+*.egg-info/
+build/

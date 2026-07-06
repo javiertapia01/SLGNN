@@ -1,0 +1,1497 @@
+# Presentación formal del proyecto SLGNN
+
+## 1. Descripción general
+
+Este proyecto tiene como propósito formular un **modelo sustituto neuronal para la simulación de dinámica granular en molinos SAG**, basado en redes neuronales de grafos e informado por principios de mecánica.
+
+La arquitectura propuesta se denomina **SLGNN**, sigla de **SDF–Lagrangian Graph Neural Network**. Su objetivo es aprender, a partir de trayectorias generadas mediante simulaciones de alta fidelidad, un operador dinámico capaz de predecir la evolución temporal de un sistema compuesto por partículas que interactúan entre sí, con la gravedad y con las paredes móviles de un molino.
+
+En términos generales, el modelo busca aproximar una dinámica de la forma
+
+[
+\bigl(\text{estado actual de las partículas},
+\text{geometría del molino},
+\text{movimiento de las paredes}\bigr)
+\longmapsto
+\text{estado futuro del sistema}.
+]
+
+Sin embargo, SLGNN no plantea esta relación como una regresión arbitraria entre estados. Su diseño pretende introducir explícitamente estructuras propias del problema físico:
+
+[
+\boxed{\text{localidad de las interacciones}}
+]
+
+[
+\boxed{\text{geometría relativa}}
+]
+
+[
+\boxed{\text{energía cinética y potencial}}
+]
+
+[
+\boxed{\text{disipación por contacto y fricción}}
+]
+
+[
+\boxed{\text{dinámica de paredes móviles}}
+]
+
+[
+\boxed{\text{integración temporal de ecuaciones mecánicas}}.
+]
+
+Por consiguiente, el proyecto se sitúa en la intersección de cuatro áreas:
+
+1. simulación de medios granulares;
+2. redes neuronales de grafos;
+3. aprendizaje de sistemas dinámicos;
+4. modelos de aprendizaje automático informados por física.
+
+El proyecto se desarrolla como trabajo final del curso **MAT2320**, por Javier Tapia, bajo la supervisión académica del profesor Mircea Petrache.
+
+---
+
+# 2. Problema físico que se desea abordar
+
+## 2.1. Dinámica granular en molinos SAG
+
+Un molino SAG, *Semi-Autogenous Grinding mill*, es un equipo industrial en el que una carga compuesta por mineral, bolas de acero y, eventualmente, otras fases materiales, se encuentra dentro de un tambor rotatorio.
+
+Durante su operación ocurren simultáneamente:
+
+* contactos entre partículas;
+* colisiones partícula–partícula;
+* contactos entre partículas y revestimientos;
+* levantamiento de la carga por la rotación del molino;
+* caída de partículas por gravedad;
+* fricción y deslizamiento;
+* disipación de energía;
+* transferencia de energía desde las paredes hacia la carga;
+* reorganizaciones colectivas de una gran cantidad de cuerpos.
+
+La dinámica macroscópica observable —por ejemplo, la forma de la carga, su posición dentro del molino, el régimen de catarata o cascada, la distribución de velocidades y la energía disipada— emerge de una gran cantidad de interacciones locales.
+
+Este tipo de sistema es especialmente difícil de modelar porque combina:
+
+[
+\text{muchas partículas}
++
+\text{contactos discontinuos}
++
+\text{fricción}
++
+\text{geometría móvil}
++
+\text{dinámica altamente no lineal}.
+]
+
+## 2.2. Limitación de la simulación DEM
+
+El método de referencia para este tipo de sistemas es el **Discrete Element Method**, o DEM. En DEM, cada partícula se modela individualmente y su movimiento se obtiene resolviendo ecuaciones como
+
+[
+m_i \dot{\mathbf v}_i
+=====================
+
+\sum_j \mathbf F_{ij}
++
+\mathbf F_{iW}
++
+m_i\mathbf g,
+]
+
+donde:
+
+* (m_i) es la masa de la partícula;
+* (\mathbf F_{ij}) representa fuerzas de contacto con otras partículas;
+* (\mathbf F_{iW}) representa fuerzas de contacto con la pared;
+* (\mathbf g) es la aceleración gravitacional.
+
+Si también se modela rotación, se debe resolver adicionalmente
+
+[
+I_i\dot{\boldsymbol\omega}_i
+============================
+
+\sum_j \boldsymbol\tau_{ij}
++
+\boldsymbol\tau_{iW}.
+]
+
+DEM ofrece una descripción física detallada, pero su costo computacional crece rápidamente con:
+
+* el número de partículas;
+* el número de contactos;
+* la complejidad de las leyes de contacto;
+* el tamaño del dominio;
+* la duración de la simulación;
+* la reducción del paso temporal requerida por estabilidad.
+
+Este costo limita la posibilidad de realizar grandes exploraciones paramétricas, optimización de geometrías, ajuste de condiciones operacionales o simulación repetida de escenarios industriales.
+
+Los simuladores gráficos de dinámica granular han mostrado que una GNN puede aprender reglas locales de interacción y producir *rollouts* considerablemente más rápidos que simuladores numéricos de alta fidelidad. El modelo GNS de Choi y Kumar, por ejemplo, representa los granos mediante nodos y las interacciones mediante aristas, predice aceleraciones y actualiza los estados mediante integración temporal. 
+
+---
+
+# 3. Idea central: construir un modelo sustituto físico
+
+SLGNN se concibe como un **modelo sustituto**, o *surrogate model*.
+
+Esto significa que el modelo no pretende eliminar el uso de DEM en la etapa de desarrollo. DEM continúa siendo necesario para:
+
+* generar trayectorias de entrenamiento;
+* proporcionar aceleraciones, velocidades y posiciones de referencia;
+* calibrar el comportamiento del sistema;
+* validar la precisión del modelo aprendido.
+
+Una vez entrenado, SLGNN debería aproximar muchas simulaciones DEM sin tener que volver a resolver explícitamente todos los contactos con el paso temporal extremadamente pequeño utilizado por el simulador de alta fidelidad.
+
+El flujo conceptual es
+
+[
+\boxed{
+\text{DEM de alta fidelidad}
+\longrightarrow
+\text{dataset de trayectorias}
+\longrightarrow
+\text{entrenamiento de SLGNN}
+\longrightarrow
+\text{simulación neuronal rápida}
+}.
+]
+
+El modelo sustituto no debe entenderse como una simple interpolación estadística de variables macroscópicas. Su salida principal es la evolución de las partículas, a partir de la cual pueden calcularse posteriormente magnitudes macroscópicas.
+
+En principio, una trayectoria predicha permite estimar:
+
+* distribución espacial de la carga;
+* perfiles de velocidad;
+* zonas de impacto;
+* frecuencia e intensidad de colisiones;
+* energía cinética;
+* energía disipada;
+* patrones de flujo;
+* medidas agregadas relevantes para operación y diseño.
+
+---
+
+# 4. Por qué utilizar una red neuronal de grafos
+
+## 4.1. Representación natural de un sistema de partículas
+
+En cada instante (t_k), el sistema se representa mediante un grafo dinámico
+
+[
+G^k=(V^k,E^k).
+]
+
+Cada nodo (i\in V^k) representa una partícula. Cada arista ((i,j)\in E^k) representa una interacción potencial entre dos partículas espacialmente próximas.
+
+Una regla básica de conectividad es
+
+[
+(i,j)\in E^k
+\quad\Longleftrightarrow\quad
+|\mathbf q_i^k-\mathbf q_j^k|\leq r_c,
+]
+
+donde (r_c) es un radio de interacción.
+
+El grafo es dinámico porque la vecindad cambia a medida que las partículas se mueven:
+
+[
+E^k\neq E^{k+1}.
+]
+
+Esto es adecuado para materiales granulares, ya que sus redes de contacto se forman y desaparecen continuamente.
+
+## 4.2. Localidad
+
+Las fuerzas de contacto granular son fundamentalmente locales. Una partícula no interactúa directamente con todas las partículas del molino, sino principalmente con las que se encuentran dentro de su entorno inmediato.
+
+El *message passing* reproduce esta estructura:
+
+[
+\mathbf m_{ij}^{(\ell)}
+=======================
+
+\Phi_e^{(\ell)}
+\left(
+\mathbf h_i^{(\ell)},
+\mathbf h_j^{(\ell)},
+\boldsymbol\eta_{ij}
+\right),
+]
+
+[
+\overline{\mathbf m}_i^{(\ell)}
+===============================
+
+\sum_{j\in\mathcal N(i)}
+w_{ij}\mathbf m_{ij}^{(\ell)},
+]
+
+[
+\mathbf h_i^{(\ell+1)}
+======================
+
+\Phi_v^{(\ell)}
+\left(
+\mathbf h_i^{(\ell)},
+\overline{\mathbf m}_i^{(\ell)}
+\right).
+]
+
+Aquí:
+
+* (\mathbf h_i^{(\ell)}) es la representación latente del nodo;
+* (\boldsymbol\eta_{ij}) contiene información relativa entre partículas;
+* (\Phi_e^{(\ell)}) es una red que construye mensajes;
+* (\Phi_v^{(\ell)}) actualiza la representación de cada partícula;
+* (\mathcal N(i)) es el vecindario de (i);
+* (w_{ij}) es un peso de conectividad.
+
+## 4.3. Invariancia frente al orden de las partículas
+
+Una propiedad esencial es que la dinámica no debe depender del orden con el que las partículas se almacenan en memoria.
+
+La agregación por suma,
+
+[
+\sum_{j\in\mathcal N(i)}\mathbf m_{ij},
+]
+
+es invariante ante permutaciones de los vecinos. Por tanto, la red no necesita aprender por separado todas las posibles enumeraciones de las partículas.
+
+La formulación GNS muestra precisamente que los grafos permiten representar estados físicos cambiantes, interacciones locales y sistemas con diferente número de partículas sin fijar una malla regular. 
+
+---
+
+# 5. Geometría del molino mediante Signed Distance Functions
+
+## 5.1. El problema de las fronteras
+
+Una GNN de partículas no puede simular correctamente un molino si desconoce:
+
+* dónde se encuentra la pared;
+* cuál es su orientación local;
+* cómo se mueve;
+* cuándo una partícula está próxima al contacto.
+
+Representar la pared mediante una gran cantidad de nodos o partículas virtuales puede aumentar el costo del grafo y generar errores geométricos.
+
+SLGNN adopta la idea central del modelo **SGN de Li y Sakai**: representar la frontera mediante una **Signed Distance Function**, o SDF. En SGN, las paredes arbitrarias se codifican mediante un campo continuo en lugar de introducir partículas virtuales de frontera. 
+
+## 5.2. Definición de la SDF
+
+Sea
+
+[
+\varphi(\mathbf x,t)
+]
+
+una función de distancia firmada asociada a la geometría del molino. En términos conceptuales,
+
+[
+|\varphi(\mathbf x,t)|
+======================
+
+\operatorname{dist}
+\bigl(
+\mathbf x,\partial\Omega(t)
+\bigr),
+]
+
+donde (\partial\Omega(t)) es la pared del molino en el instante (t).
+
+La frontera está definida por
+
+[
+\varphi(\mathbf x,t)=0.
+]
+
+El gradiente
+
+[
+\nabla_{\mathbf x}\varphi(\mathbf x,t)
+]
+
+entrega la dirección normal local de la pared. Para una SDF ideal,
+
+[
+|\nabla\varphi|\approx 1
+]
+
+en una vecindad de la superficie.
+
+Para cada partícula se calculan
+
+[
+\varphi_i^k
+===========
+
+\varphi(\mathbf q_i^k,t_k),
+]
+
+[
+\mathbf n_i^k
+=============
+
+\frac{
+\nabla\varphi(\mathbf q_i^k,t_k)
+}{
+|\nabla\varphi(\mathbf q_i^k,t_k)|+\varepsilon
+}.
+]
+
+Por tanto, cada partícula conoce localmente:
+
+* su distancia firmada a la pared;
+* la normal de la pared;
+* si está lejos o cerca de una posible interacción;
+* la variación temporal de la geometría.
+
+## 5.3. Pared móvil
+
+En el sistema de referencia inercial, la geometría del molino rota. Por ello se utiliza una SDF dependiente del tiempo:
+
+[
+\varphi=\varphi(\mathbf x,t).
+]
+
+SLGNN no transforma todo el problema a un marco rotante. En su lugar, mantiene las partículas en coordenadas inerciales y actualiza la geometría en cada instante mediante la transformación conocida del molino.
+
+Si la pared está sometida a un movimiento rígido prescrito, puede calcularse también su velocidad local:
+
+[
+\mathbf v_W(\mathbf x,t).
+]
+
+Esta velocidad es indispensable para describir correctamente el contacto. La fricción con una pared móvil depende de la velocidad relativa
+
+[
+\mathbf u_{iW}
+==============
+
+\mathbf v_i-\mathbf v_W(\mathbf q_i,t),
+]
+
+y no solamente de la velocidad absoluta (\mathbf v_i).
+
+El trabajo de Garrido Núñez demuestra la relevancia de combinar una representación SDF con fronteras móviles y predicción de disipación energética en un problema de molienda de alta energía. Ese trabajo constituye una referencia directa para trasladar la metodología hacia sistemas de molienda, aunque el objetivo de SLGNN es específicamente la formulación de una arquitectura más estructurada para molinos SAG. 
+
+---
+
+# 6. Estado físico utilizado por el modelo
+
+Para (N) partículas en dimensión (d), se define
+
+[
+\mathbf q
+=========
+
+(\mathbf q_1,\ldots,\mathbf q_N)
+\in\mathbb R^{Nd},
+]
+
+[
+\mathbf v
+=========
+
+# (\mathbf v_1,\ldots,\mathbf v_N)
+
+\dot{\mathbf q}.
+]
+
+Cada partícula puede estar caracterizada por
+
+[
+s_i
+===
+
+\left(
+\mathbf q_i,
+\mathbf v_i,
+m_i,
+R_i,
+c_i,
+\text{propiedades materiales}
+\right),
+]
+
+donde:
+
+* (\mathbf q_i) es la posición;
+* (\mathbf v_i) es la velocidad;
+* (m_i) es la masa;
+* (R_i) es el radio o escala geométrica;
+* (c_i) identifica el tipo de partícula;
+* las propiedades materiales pueden incluir densidad, coeficientes de fricción u otras variables disponibles.
+
+La versión base del proyecto se concentra en la dinámica translacional. Las velocidades angulares, orientaciones y torques pueden incorporarse posteriormente cuando el dataset DEM los proporcione y cuando resulte necesario modelar explícitamente el rodamiento.
+
+Las variables nodales pueden incluir:
+
+[
+\mathbf x_i
+===========
+
+\left[
+\mathbf v_i^{k-H+1:k},
+m_i,
+R_i,
+c_i,
+\varphi_i^k,
+\mathbf n_i^k,
+\mathbf v_W(\mathbf q_i^k,t_k),
+\mathbf g
+\right].
+]
+
+Las variables de arista pueden incluir:
+
+[
+\mathbf r_{ij}
+==============
+
+\mathbf q_j-\mathbf q_i,
+]
+
+[
+d_{ij}
+======
+
+|\mathbf r_{ij}|,
+]
+
+[
+\mathbf u_{ij}
+==============
+
+\mathbf v_j-\mathbf v_i,
+]
+
+además de cantidades derivadas como velocidades normales y tangenciales relativas.
+
+---
+
+# 7. Arquitectura completa de SLGNN
+
+El flujo general es
+
+[
+\boxed{
+\text{estado físico}
+}
+\rightarrow
+\boxed{
+\text{SDF y grafo dinámico}
+}
+\rightarrow
+\boxed{
+\text{encoder físico-geométrico}
+}
+\rightarrow
+\boxed{
+\text{message passing}
+}
+\rightarrow
+\boxed{
+\text{energía y disipación}
+}
+\rightarrow
+\boxed{
+\text{Euler--Lagrange}
+}
+\rightarrow
+\boxed{
+\text{integración temporal}
+}.
+]
+
+## 7.1. Encoder físico-geométrico
+
+El encoder transforma variables de distinta naturaleza en representaciones latentes:
+
+[
+\mathbf h_i^0
+=============
+
+\operatorname{Enc}_V(\mathbf x_i),
+]
+
+[
+\mathbf e_{ij}^0
+================
+
+\operatorname{Enc}*E
+\left(
+\mathbf r*{ij},
+d_{ij},
+\mathbf u_{ij},
+\text{propiedades}_{ij}
+\right).
+]
+
+En el canal partícula–pared puede construirse una representación
+
+[
+\mathbf e_{iW}^0
+================
+
+\operatorname{Enc}*W
+\left(
+\varphi_i,
+\mathbf n_i,
+\mathbf u*{iW},
+\text{propiedades}_{iW}
+\right).
+]
+
+El encoder no predice todavía fuerzas ni aceleraciones. Su función es convertir la descripción física en un espacio latente adecuado para el procesamiento relacional.
+
+## 7.2. Processor gráfico
+
+El processor realiza varias capas de *message passing*. Con ello, cada partícula puede combinar:
+
+* su propio estado;
+* el estado de sus vecinos;
+* la geometría relativa;
+* la cercanía y orientación de la pared;
+* el movimiento local de la frontera.
+
+Después de (L) capas se obtienen representaciones
+
+[
+\mathbf z_i=\mathbf h_i^L,
+\qquad
+\mathbf z_{ij}=\mathbf e_{ij}^L,
+\qquad
+\mathbf z_{iW}.
+]
+
+Estas representaciones no son directamente la aceleración. Se utilizan para parametrizar cantidades con significado mecánico.
+
+---
+
+# 8. Canal conservativo: aprendizaje del lagrangiano
+
+## 8.1. Energía cinética
+
+Como las masas se asumen conocidas a partir de los datos DEM, la energía cinética no necesita aprenderse como una función arbitraria:
+
+[
+T(\mathbf v)
+============
+
+\frac12
+\sum_{i=1}^{N}
+m_i|\mathbf v_i|^2.
+]
+
+Esta decisión reduce la carga de aprendizaje y garantiza una estructura inercial físicamente consistente.
+
+En una extensión con rotación podría añadirse
+
+[
+T_{\mathrm{rot}}
+================
+
+\frac12
+\sum_i
+\boldsymbol\omega_i^\top
+I_i
+\boldsymbol\omega_i.
+]
+
+## 8.2. Energía potencial gravitacional
+
+La gravedad se incorpora explícitamente:
+
+[
+V_g(\mathbf q)
+==============
+
+-\sum_i
+m_i\mathbf g^\top\mathbf q_i.
+]
+
+Esta expresión es exactamente la formulación vectorial de (mgh). Si
+
+[
+\mathbf g=-g_0\mathbf e_z,
+]
+
+entonces
+
+[
+-\mathbf g^\top\mathbf q_i
+==========================
+
+g_0 z_i,
+]
+
+y, por tanto,
+
+[
+V_g
+===
+
+\sum_i m_i g_0 z_i.
+]
+
+La posición aparece porque la altura es la proyección de la posición sobre la dirección opuesta al campo gravitacional.
+
+## 8.3. Potencial partícula–partícula
+
+La energía conservativa asociada a las interacciones entre partículas se modela como una suma local:
+
+[
+V_{pp,\theta}
+=============
+
+\frac12
+\sum_{i}
+\sum_{j\in\mathcal N(i)}
+w_{ij}
+,
+U_{pp,\theta}
+\left(
+\mathbf z_{ij}
+\right).
+]
+
+El factor (1/2) evita contar dos veces una interacción cuando el grafo contiene ambas orientaciones.
+
+La simetrización de las contribuciones es importante porque permite que las fuerzas conservativas derivadas del potencial satisfagan una estructura de acción y reacción.
+
+## 8.4. Potencial partícula–pared
+
+La pared se modela mediante
+
+[
+V_{pW,\theta}
+=============
+
+\sum_i
+U_{pW,\theta}
+\left(
+\mathbf z_{iW},
+\varphi_i,
+t
+\right).
+]
+
+Como la SDF depende del tiempo,
+
+[
+V_{pW,\theta}=V_{pW,\theta}(\mathbf q,t).
+]
+
+Esto permite que una pared móvil transfiera energía al sistema. No es necesario introducir una energía cinética aprendida para la pared cuando el movimiento del molino está prescrito externamente: la pared no es un grado de libertad dinámico que deba resolverse. Su capacidad de realizar trabajo sobre las partículas se representa mediante la dependencia temporal de (V_{pW,\theta}) y mediante la velocidad relativa en el canal disipativo.
+
+## 8.5. Lagrangiano aprendido
+
+La energía potencial total es
+
+[
+V_\theta
+========
+
+V_g
++
+V_{pp,\theta}
++
+V_{pW,\theta}.
+]
+
+El lagrangiano se define como
+
+[
+L_\theta(\mathbf q,\mathbf v,t)
+===============================
+
+T(\mathbf v)-V_\theta(\mathbf q,t).
+]
+
+Esta parte de la arquitectura se inspira en las **Lagrangian Graph Neural Networks**, que aprenden contribuciones energéticas sobre nodos y aristas y derivan posteriormente la dinámica mediante las ecuaciones de Euler–Lagrange. LGNN también muestra cómo integrar fuerzas externas y términos disipativos en una formulación gráfica. 
+
+---
+
+# 9. Canal disipativo
+
+## 9.1. Por qué no basta con una formulación conservativa
+
+Un molino granular no es un sistema conservativo. En cada contacto se disipa energía debido a:
+
+* amortiguamiento normal;
+* fricción tangencial;
+* rodamiento;
+* impactos inelásticos;
+* deformaciones internas;
+* mecanismos no resueltos por el modelo.
+
+Una arquitectura Hamiltoniana o lagrangiana puramente conservativa sería insuficiente. Por esta razón, SLGNN separa explícitamente:
+
+[
+\text{dinámica conservativa}
+\quad+\quad
+\text{dinámica disipativa}.
+]
+
+## 9.2. Disipación de Rayleigh partícula–partícula
+
+Se introduce una función de disipación no negativa
+
+[
+\mathcal R_{pp,\theta}\geq 0.
+]
+
+Una posible parametrización estructurada es
+
+[
+\mathcal R_{pp,\theta}
+======================
+
+\frac12
+\sum_{(i,j)\in E}
+w_{ij}
+\left[
+c_{n,ij}
+\left(
+\mathbf u_{ij}\cdot\widehat{\mathbf r}*{ij}
+\right)^2
++
+c*{t,ij}
+\left|
+P_{ij}^{\perp}
+\mathbf u_{ij}
+\right|^2
+\right],
+]
+
+donde:
+
+[
+\widehat{\mathbf r}_{ij}
+========================
+
+\frac{\mathbf r_{ij}}
+{|\mathbf r_{ij}|+\varepsilon},
+]
+
+[
+P_{ij}^{\perp}
+==============
+
+I-\widehat{\mathbf r}*{ij}
+\widehat{\mathbf r}*{ij}^{\top}.
+]
+
+Los coeficientes (c_{n,ij}) y (c_{t,ij}) son predichos por la red, pero se parametrizan como no negativos, por ejemplo mediante una función *softplus*.
+
+Las fuerzas disipativas resultantes son
+
+[
+\mathbf Q^{\mathrm{diss}}_{pp}
+==============================
+
+*
+
+\frac{\partial\mathcal R_{pp,\theta}}
+{\partial\mathbf v}.
+]
+
+El signo negativo es esencial: la disipación debe oponerse al movimiento relativo y no inyectar energía artificialmente.
+
+## 9.3. Disipación partícula–pared
+
+Para la pared se utiliza la velocidad relativa
+
+[
+\mathbf u_{iW}
+==============
+
+\mathbf v_i-\mathbf v_W(\mathbf q_i,t).
+]
+
+La función de Rayleigh puede contener componentes normal y tangencial:
+
+[
+\mathcal R_{pW,\theta}
+======================
+
+\frac12
+\sum_i
+\left[
+c_{n,iW}
+(\mathbf u_{iW}\cdot\mathbf n_i)^2
++
+c_{t,iW}
+\left|
+(I-\mathbf n_i\mathbf n_i^\top)
+\mathbf u_{iW}
+\right|^2
+\right].
+]
+
+La disipación total es
+
+[
+\mathcal R_\theta
+=================
+
+\mathcal R_{pp,\theta}
++
+\mathcal R_{pW,\theta}.
+]
+
+## 9.4. Canal no conservativo histórico
+
+La fricción granular real no siempre puede representarse mediante una función instantánea cuadrática de la velocidad. Por ejemplo, la fricción de Coulomb y la evolución del desplazamiento tangencial poseen memoria de contacto.
+
+Por ello, SLGNN contempla un canal residual histórico
+
+[
+\mathbf Q_{\mathrm{hist},\theta},
+]
+
+que recibe información de una ventana temporal o un estado latente recurrente.
+
+Este canal permite modelar efectos como:
+
+* histéresis;
+* acumulación tangencial;
+* dependencia del contacto pasado;
+* disipación no lineal;
+* fenómenos no representables por un potencial o una función de Rayleigh simple.
+
+La arquitectura híbrida queda conceptualmente como
+
+[
+\boxed{
+\text{Lagrangiano}
++
+\text{Rayleigh}
++
+\text{residuo histórico controlado}
+}.
+]
+
+El término histórico no debe convertirse en una caja negra sin restricciones. Se busca limitarlo mediante condiciones de disipación y, en interacciones internas, mediante simetrías par a par.
+
+---
+
+# 10. Obtención de la dinámica
+
+La ecuación general utilizada es
+
+[
+\frac{d}{dt}
+\frac{\partial L_\theta}
+{\partial\mathbf v}
+-------------------
+
+\frac{\partial L_\theta}
+{\partial\mathbf q}
++
+\frac{\partial\mathcal R_\theta}
+{\partial\mathbf v}
+===================
+
+\mathbf Q_{\mathrm{hist},\theta}.
+]
+
+Dado que
+
+[
+T(\mathbf v)
+============
+
+\frac12\mathbf v^\top M\mathbf v,
+]
+
+con una matriz de masa diagonal conocida, se obtiene esquemáticamente
+
+[
+M\mathbf a
+==========
+
+*
+
+## \nabla_{\mathbf q}V_\theta
+
+\nabla_{\mathbf v}\mathcal R_\theta
++
+\mathbf Q_{\mathrm{hist},\theta}.
+]
+
+Por tanto,
+
+[
+\widehat{\mathbf a}
+===================
+
+M^{-1}
+\left[
+------
+
+## \nabla_{\mathbf q}V_\theta
+
+\nabla_{\mathbf v}\mathcal R_\theta
++
+\mathbf Q_{\mathrm{hist},\theta}
+\right].
+]
+
+Las derivadas se calculan mediante autodiferenciación.
+
+Esta formulación es importante porque la aceleración no aparece como una salida completamente libre de una MLP. Surge de:
+
+* un potencial gravitacional conocido;
+* potenciales aprendidos;
+* una función de disipación;
+* un término residual no conservativo acotado;
+* una matriz de masa conocida.
+
+---
+
+# 11. Integración temporal y rollout
+
+Una vez obtenida la aceleración, se actualiza el estado mediante un integrador temporal.
+
+En su forma más simple:
+
+[
+\mathbf v_i^{k+1}
+=================
+
+\mathbf v_i^k
++
+\Delta t,
+\widehat{\mathbf a}_i^k,
+]
+
+[
+\mathbf q_i^{k+1}
+=================
+
+\mathbf q_i^k
++
+\Delta t,
+\mathbf v_i^{k+1}.
+]
+
+También puede emplearse un esquema tipo *velocity Verlet* o una variante semiimplícita para mejorar estabilidad.
+
+Después de actualizar las partículas:
+
+1. se actualiza la geometría del molino;
+2. se evalúa nuevamente la SDF;
+3. se reconstruye el grafo por radio;
+4. se recalculan las features;
+5. se ejecuta nuevamente la red.
+
+El proceso recursivo es
+
+[
+(\mathbf q^k,\mathbf v^k)
+\longrightarrow
+\widehat{\mathbf a}^k
+\longrightarrow
+(\mathbf q^{k+1},\mathbf v^{k+1})
+\longrightarrow
+\widehat{\mathbf a}^{k+1}
+\longrightarrow\cdots
+]
+
+y se denomina **rollout**.
+
+---
+
+# 12. Tratamiento de la geometría y consistencia física
+
+## 12.1. Corte suave del grafo
+
+Una regla binaria estricta puede producir discontinuidades cuando una arista aparece o desaparece en el radio (r_c). Para reducir este problema, SLGNN considera pesos suaves:
+
+[
+w_{ij}
+======
+
+\chi
+\left(
+\frac{|\mathbf r_{ij}|}{r_c}
+\right),
+]
+
+donde (\chi) decrece suavemente hasta cero cerca del radio de corte.
+
+Esto mejora:
+
+* continuidad de las energías;
+* continuidad de las fuerzas;
+* estabilidad de la autodiferenciación;
+* comportamiento del rollout.
+
+## 12.2. No penetración
+
+La SDF permite detectar penetraciones de pared. Dependiendo de la convención de signo, una condición física de admisibilidad tiene la forma
+
+[
+\varphi(\mathbf q_i,t)\geq \varphi_{\min}
+]
+
+o su versión con signo opuesto.
+
+Durante entrenamiento y evaluación pueden penalizarse:
+
+* penetraciones;
+* distancia excesiva al dominio admisible;
+* aceleraciones dirigidas incorrectamente cerca de la pared.
+
+## 12.3. Pared como sistema prescrito
+
+El molino no se trata como un cuerpo dinámico cuya ecuación de movimiento deba aprenderse. Su rotación se considera conocida.
+
+Por ello:
+
+* la posición de la pared es una entrada;
+* su velocidad es una entrada;
+* el trabajo realizado por la pared aparece en la dinámica de las partículas;
+* no se calcula la reacción dinámica del molino sobre el motor o la estructura completa.
+
+Esta separación mantiene manejable el problema inicial.
+
+---
+
+# 13. Propiedades geométricas del modelo
+
+El proyecto toma inspiración de modelos equivariantes como EGNS, que utilizan posiciones relativas, distancias invariantes y actualizaciones vectoriales compatibles con transformaciones geométricas. EGNS propone además una aceleración intrínseca y marcos locales adaptados al flujo granular. 
+
+No obstante, en la formulación actual de SLGNN se evita afirmar una equivariancia completa bajo todas las transformaciones euclidianas.
+
+La razón es física:
+
+* la gravedad selecciona una dirección preferente;
+* la geometría del molino rompe simetrías espaciales;
+* el movimiento prescrito de la pared también selecciona un marco físico;
+* los revestimientos y levantadores introducen anisotropía.
+
+La propiedad buscada es más precisamente una **consistencia respecto del sistema de coordenadas**:
+
+* las distancias se representan mediante escalares;
+* las direcciones se representan mediante vectores relativos;
+* los potenciales son escalares;
+* las fuerzas se obtienen como gradientes;
+* si se cambia el sistema de coordenadas y se transforman conjuntamente posiciones, gravedad y geometría, la predicción debe transformarse de manera compatible.
+
+Por ejemplo, la gravedad no contradice esta consistencia. Lo que no es válido es rotar solamente las partículas manteniendo fija la gravedad, porque eso corresponde a un sistema físico diferente.
+
+---
+
+# 14. Datos y preparación del dataset
+
+El dataset debe construirse a partir de simulaciones DEM.
+
+Para cada instante se almacenan, idealmente:
+
+[
+\left{
+\mathbf q_i^k,
+\mathbf v_i^k,
+\mathbf a_i^k,
+m_i,
+R_i,
+c_i
+\right}_{i=1}^{N},
+]
+
+junto con:
+
+* posición y orientación del molino;
+* velocidad angular del molino;
+* geometría o malla de la pared;
+* SDF y gradiente;
+* información de contactos, si está disponible;
+* energía disipada por intervalo;
+* propiedades materiales.
+
+Las aceleraciones pueden obtenerse directamente desde el solver o mediante diferencias finitas:
+
+[
+\mathbf a_i^k
+\approx
+\frac{
+\mathbf v_i^{k+1}-\mathbf v_i^k
+}{
+\Delta t
+}.
+]
+
+La preparación de cada ejemplo incluye:
+
+1. seleccionar una ventana temporal;
+2. evaluar la SDF en cada partícula;
+3. construir aristas partícula–partícula;
+4. construir features partícula–pared;
+5. normalizar magnitudes;
+6. construir el target dinámico;
+7. agrupar grafos en batches.
+
+La SDF no es aprendida por la red. Es una descripción geométrica externa calculada a partir de la geometría conocida.
+
+---
+
+# 15. Entrenamiento
+
+La pérdida básica puede formularse sobre aceleraciones:
+
+[
+\mathcal L_{\mathrm{acc}}
+=========================
+
+\frac1N
+\sum_i
+|
+\widehat{\mathbf a}_i^k
+-----------------------
+
+\mathbf a_{i,\mathrm{DEM}}^k
+|^2.
+]
+
+Sin embargo, una buena predicción a un paso no garantiza un rollout estable. Por ello se considera una pérdida multi-step:
+
+[
+\mathcal L_{\mathrm{roll}}
+==========================
+
+\sum_{s=1}^{H}
+\alpha_s
+\left[
+|
+\widehat{\mathbf q}^{k+s}
+-------------------------
+
+\mathbf q_{\mathrm{DEM}}^{k+s}
+|^2
++
+\beta
+|
+\widehat{\mathbf v}^{k+s}
+-------------------------
+
+\mathbf v_{\mathrm{DEM}}^{k+s}
+|^2
+\right].
+]
+
+La pérdida total puede combinar
+
+[
+\mathcal L
+==========
+
+\lambda_{\mathrm{acc}}\mathcal L_{\mathrm{acc}}
++
+\lambda_{\mathrm{roll}}\mathcal L_{\mathrm{roll}}
++
+\lambda_{\mathrm{wall}}\mathcal L_{\mathrm{wall}}
++
+\lambda_{\mathrm{diss}}\mathcal L_{\mathrm{diss}}
++
+\lambda_{\mathrm{energy}}\mathcal L_{\mathrm{energy}}.
+]
+
+Los términos auxiliares tienen los siguientes propósitos:
+
+* (\mathcal L_{\mathrm{wall}}): penalizar penetraciones;
+* (\mathcal L_{\mathrm{diss}}): impedir producción espuria de energía por el canal disipativo;
+* (\mathcal L_{\mathrm{energy}}): controlar el balance entre energía inyectada por la pared, gravedad y disipación;
+* (\mathcal L_{\mathrm{roll}}): reducir acumulación de error.
+
+También es conveniente introducir ruido controlado en las posiciones o velocidades de entrenamiento, porque durante inferencia el modelo recibirá sus propias predicciones imperfectas.
+
+---
+
+# 16. Estrategia de evaluación
+
+La evaluación debe distinguir entre precisión local, estabilidad global y utilidad física.
+
+## 16.1. Precisión de estados
+
+Se miden errores en:
+
+[
+\mathbf q_i,
+\qquad
+\mathbf v_i,
+\qquad
+\mathbf a_i.
+]
+
+Por ejemplo:
+
+[
+\operatorname{RMSE}_{q}(t)
+==========================
+
+\sqrt{
+\frac1N
+\sum_i
+|
+\widehat{\mathbf q}_i(t)
+------------------------
+
+\mathbf q_i^{\mathrm{DEM}}(t)
+|^2
+}.
+]
+
+## 16.2. Estabilidad de rollout
+
+Debe verificarse:
+
+* duración del rollout antes de divergir;
+* número de penetraciones de pared;
+* aparición de velocidades no físicas;
+* crecimiento artificial de la energía;
+* conservación cualitativa del régimen de flujo;
+* estabilidad frente a pequeñas perturbaciones.
+
+## 16.3. Variables macroscópicas
+
+En un molino SAG no basta con comparar partículas individualmente. También deben evaluarse:
+
+* centro de masa de la carga;
+* distribución angular de partículas;
+* perfil de llenado;
+* forma de la superficie libre;
+* posición del pie y hombro de la carga;
+* distribución de velocidades;
+* frecuencia de impactos;
+* energía cinética total;
+* energía disipada;
+* potencia transferida desde las paredes;
+* distribución espacial de colisiones.
+
+## 16.4. Generalización
+
+El modelo debe probarse en situaciones no utilizadas durante entrenamiento:
+
+* nuevas condiciones iniciales;
+* distintos números de partículas;
+* diferentes niveles de llenado;
+* distintas velocidades de rotación;
+* variaciones moderadas de geometría;
+* nuevos tamaños o masas de partículas;
+* combinaciones de parámetros materiales;
+* secuencias de operación diferentes.
+
+## 16.5. Eficiencia
+
+Finalmente se compara:
+
+[
+\text{tiempo de DEM}
+\quad\text{versus}\quad
+\text{tiempo de SLGNN}.
+]
+
+Deben reportarse por separado:
+
+* costo de generación del dataset;
+* costo de entrenamiento;
+* costo de inferencia;
+* uso de memoria;
+* velocidad por paso temporal;
+* aceleración total en un rollout.
+
+---
+
+# 17. Contribución conceptual del proyecto
+
+La contribución no consiste simplemente en aplicar una GNN existente a un nuevo dataset.
+
+SLGNN integra de manera explícita ideas provenientes de diferentes familias de modelos:
+
+| Componente                          | Función en SLGNN                                                                                                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **GNS**                             | Representación de partículas como nodos, interacciones locales como aristas y rollout encoder–processor–decoder. |
+| **SGN**                             | Representación de paredes complejas mediante una SDF y su gradiente.                                             |
+| **LGNN**                            | Construcción de una dinámica a partir de energías y ecuaciones de Euler–Lagrange.                                |
+| **EGNS**                            | Uso de geometría relativa y diseño compatible con transformaciones espaciales.                                   |
+| **Modelos de molienda con SDF-GNN** | Tratamiento de fronteras móviles y predicción de disipación en sistemas de molienda.                             |
+
+La síntesis propuesta es:
+
+[
+\boxed{
+\text{grafo dinámico local}
++
+\text{geometría SDF móvil}
++
+\text{lagrangiano aprendido}
++
+\text{disipación estructurada}
+}.
+]
+
+El aspecto central es la separación entre mecanismos:
+
+[
+\underbrace{
+-\nabla_{\mathbf q}V_\theta
+}*{\text{fuerzas conservativas}}
+\quad+\quad
+\underbrace{
+-\nabla*{\mathbf v}\mathcal R_\theta
+}*{\text{disipación estructurada}}
+\quad+\quad
+\underbrace{
+\mathbf Q*{\mathrm{hist},\theta}
+}_{\text{efectos históricos residuales}}.
+]
+
+Esta separación mejora:
+
+* interpretabilidad;
+* control físico;
+* diagnóstico de errores;
+* generalización;
+* posibilidad de incorporar conocimiento previo;
+* trazabilidad de la energía.
+
+---
+
+# 18. Alcance actual
+
+En su formulación actual, el proyecto se concentra en aprender la **dinámica de la carga granular dentro del molino**.
+
+El alcance inicial incluye:
+
+* movimiento translacional de partículas;
+* interacciones partícula–partícula;
+* interacciones partícula–pared;
+* gravedad;
+* paredes móviles;
+* fricción y disipación;
+* predicción temporal recursiva;
+* cálculo de magnitudes energéticas.
+
+No se considera todavía como parte central:
+
+* fractura explícita del mineral;
+* reducción de tamaño de partículas;
+* generación o desaparición de partículas;
+* fluidos o pulpa;
+* acoplamiento fluido–partícula;
+* deformación estructural del molino;
+* dinámica del motor;
+* desgaste de revestimientos;
+* química o mineralogía;
+* validación industrial completa.
+
+Estas extensiones requerirían variables de estado y mecanismos adicionales.
+
+---
+
+# 19. Limitaciones y riesgos científicos
+
+## 19.1. Dependencia de los datos DEM
+
+El modelo aprende el comportamiento representado por el simulador. Si las leyes de contacto DEM están mal calibradas, el surrogate reproducirá esas limitaciones.
+
+## 19.2. Acumulación de error
+
+Los errores pequeños pueden acumularse en rollouts largos. La estabilidad temporal es uno de los principales problemas de los simuladores neuronales.
+
+## 19.3. Contactos discontinuos
+
+El inicio y fin de un contacto generan cambios abruptos. Aunque los cortes suaves ayudan, una red diferenciable solo aproxima estas discontinuidades.
+
+## 19.4. Fricción con memoria
+
+Una función de Rayleigh instantánea no representa por sí sola todas las formas de fricción. El canal histórico aumenta expresividad, pero reduce interpretabilidad si no se controla cuidadosamente.
+
+## 19.5. Escalabilidad
+
+Una GNN local escala mejor que una red completamente conectada, pero el costo sigue dependiendo del número de partículas y aristas.
+
+## 19.6. Generalización geométrica
+
+La SDF permite describir nuevas geometrías con la misma interfaz matemática, pero esto no garantiza que la red generalice a geometrías radicalmente distintas de las observadas.
+
+## 19.7. Equivarianza limitada por el sistema físico
+
+No se debe afirmar invariancia bajo rotaciones arbitrarias manteniendo fijas la gravedad y la pared. Las simetrías relevantes son las del sistema completo, incluyendo campos externos y geometría.
+
+---
+
+# 20. Estado del proyecto
+
+El resultado principal alcanzado hasta ahora es una **formulación arquitectónica y matemática detallada** de SLGNN.
+
+El proyecto ha establecido:
+
+* el estado físico del sistema;
+* la construcción del grafo dinámico;
+* la representación de la pared mediante SDF dependiente del tiempo;
+* la incorporación explícita de velocidad de pared;
+* el encoder físico-geométrico;
+* el processor de message passing;
+* la descomposición energética;
+* el canal conservativo;
+* el canal disipativo;
+* el residuo histórico;
+* la ecuación de movimiento;
+* la estrategia de integración;
+* una metodología de entrenamiento y evaluación.
+
+Por tanto, debe distinguirse entre dos niveles:
+
+1. **la arquitectura propuesta**, que ya está formulada;
+2. **su validación empírica completa en un molino SAG**, que requiere implementación, generación de datos DEM, entrenamiento y experimentación.
+
+En esta etapa, no se afirma que SLGNN ya haya demostrado superioridad frente a DEM, GNS o SGN en un benchmark SAG completo. Esa es precisamente la hipótesis que deberá someterse a evaluación.
+
+---
+
+# 21. Objetivo científico final
+
+La pregunta central del proyecto puede formularse así:
+
+> **¿Es posible aprender un simulador granular para molinos SAG que combine la eficiencia de una red neuronal de grafos con una representación explícita de la geometría, la energía y la disipación, obteniendo rollouts más rápidos que DEM y más estables e interpretables que un simulador neuronal puramente caja negra?**
+
+La hipótesis del proyecto es que la incorporación de estos sesgos inductivos reduce el espacio de funciones que la red debe aprender.
+
+En vez de aprender desde cero una aplicación arbitraria
+
+[
+(\mathbf q^k,\mathbf v^k)
+\mapsto
+(\mathbf q^{k+1},\mathbf v^{k+1}),
+]
+
+la red aprende únicamente las partes desconocidas dentro de una estructura mecánica conocida:
+
+[
+\text{geometría}
++
+\text{energía}
++
+\text{disipación}
++
+\text{interacciones locales}
+\longmapsto
+\text{dinámica}.
+]
+
+---
+
+# 22. Síntesis formal para terceros
+
+**SLGNN es una propuesta de simulador neuronal de dinámica granular destinado a aproximar simulaciones DEM de molinos SAG. El sistema de partículas se representa mediante un grafo dinámico, donde los nodos corresponden a partículas y las aristas a interacciones locales. La geometría móvil del molino se codifica mediante una Signed Distance Function dependiente del tiempo, que proporciona distancia, normal y cinemática local de la pared. La arquitectura no predice aceleraciones mediante una caja negra única, sino que aprende potenciales de interacción, una función de disipación y un término no conservativo histórico. Estas cantidades se combinan mediante ecuaciones de Euler–Lagrange y un integrador temporal para producir trayectorias recursivas. El objetivo es obtener un modelo más eficiente que DEM, pero también más interpretable, geométricamente consistente y físicamente estructurado que los simuladores neuronales puramente data-driven. En su etapa actual, el proyecto constituye una formulación matemática y arquitectónica completa cuya implementación y validación en datos DEM de molinos SAG representan la siguiente fase experimental.**

@@ -1,0 +1,11 @@
+# CPU-only stack. torch-scatter/torch-sparse/torch-cluster se omiten a propósito:
+# sus wheels precompilados deben calzar exactamente con la versión de torch/Python/OS,
+# lo que es frágil en Windows. En su lugar, graph_builder.py construye vecindarios por
+# radio con torch.cdist puro (factible: hasta ~2000 partículas, pairwise trivial en CPU).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.12.1
+torch_geometric==2.8.0
+numpy==2.5.1
+pyyaml==6.0.3
+pytest==9.1.1
+matplotlib==3.11.0

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# datos crudos y extraídos: se descargan, no se versionan
+data/raw/*
+!data/raw/.gitkeep
+data/extracted/*
+!data/extracted/.gitkeep
+
+*.zip
+*.log

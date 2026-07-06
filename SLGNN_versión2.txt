@@ -1,0 +1,3047 @@
+Mantendré la sigla **SLGNN**, que es la utilizada en el archivo de la versión 1; tomo “LGNS” como referencia a la misma arquitectura. La formulación siguiente define una **SLGNN-v2** para partículas esféricas en un molino tridimensional con geometría y movimiento prescritos.
+
+La versión 2 conserva la idea central de la versión 1 —separar energía conservativa, disipación y geometría SDF—, pero corrige la cinemática de pared, la equivariancia, los signos de Rayleigh, la suavidad del grafo y la conservación mecánica. 
+
+# SLGNN-v2
+
+## SDF–Lagrangian Graph Neural Network, versión 2
+
+## 1. Propósito de la arquitectura
+
+SLGNN-v2 busca aprender un operador dinámico para sistemas granulares de la forma
+
+[
+\mathcal F_\theta:
+\bigl(
+\text{estado de partículas},
+\text{geometría del molino},
+\text{cinemática de la pared}
+\bigr)
+\longmapsto
+\bigl(
+\text{aceleraciones},
+\text{aceleraciones angulares}
+\bigr),
+]
+
+pero sin predecir directamente estas cantidades mediante una MLP arbitraria.
+
+La arquitectura aprende objetos mecánicos intermedios:
+
+[
+V_{\mathrm{pp},\theta},
+\qquad
+V_{\mathrm{pW},\theta},
+\qquad
+\mathcal R_{\mathrm{pp},\theta},
+\qquad
+\mathcal R_{\mathrm{pW},\theta},
+\qquad
+\mathbf f_\theta^{\mathrm{hist}},
+]
+
+y obtiene la dinámica mediante:
+
+[
+\text{energía}
+\longrightarrow
+\text{gradientes conservativos},
+]
+
+[
+\text{Rayleigh}
+\longrightarrow
+\text{fuerzas y torques disipativos},
+]
+
+[
+\text{rama histórica}
+\longrightarrow
+\text{efectos no instantáneos}.
+]
+
+La inspiración de LGNN se mantiene: construir un lagrangiano escalar como suma de contribuciones locales y obtener la dinámica mediante diferenciación.
+
+La geometría arbitraria continúa representándose mediante SDF, como en SGN, pero ahora la cinemática de la pared se incorpora explícitamente y no se intenta inferir únicamente desde el historial de la SDF.
+
+---
+
+# 2. Alcance físico de SLGNN-v2
+
+La versión completa considera:
+
+[
+\boxed{
+\text{traslación de partículas}
++
+\text{rotación propia de partículas esféricas}
+}
+]
+
+La orientación de una esfera no modifica su geometría, por lo que no es necesario integrar una matriz de orientación (Q_i\in SO(3)). Sin embargo, su velocidad angular sí es necesaria para representar correctamente:
+
+* deslizamiento en el punto de contacto;
+* fricción tangencial;
+* torque partícula–partícula;
+* torque partícula–pared;
+* transferencia entre momento angular orbital y spin.
+
+Para partículas no esféricas habría que añadir orientaciones en (SO(3)); eso corresponde a una extensión posterior.
+
+El molino se considera un sistema externo prescrito. No se resuelven sus ecuaciones de movimiento. Se conocen:
+
+[
+\mathbf c_W(t),
+\qquad
+Q_W(t)\in SO(3),
+\qquad
+\mathbf V_W(t)=\dot{\mathbf c}_W(t),
+\qquad
+\boldsymbol\Omega_W(t).
+]
+
+Por tanto, no se introduce una energía cinética aprendida de la pared.
+
+---
+
+# 3. Estado físico de las partículas
+
+Para cada partícula (i\in{1,\dots,N}), en el tiempo (t_k), definimos:
+
+[
+\mathbf q_i^k\in\mathbb R^3
+]
+
+posición del centro;
+
+[
+\mathbf v_i^k\in\mathbb R^3
+]
+
+velocidad translacional;
+
+[
+\boldsymbol\omega_i^k\in\mathbb R^3
+]
+
+velocidad angular;
+
+[
+\mathbf a_i^k\in\mathbb R^3
+]
+
+aceleración translacional;
+
+[
+\boldsymbol\alpha_i^k
+=====================
+
+\dot{\boldsymbol\omega}_i^k
+\in\mathbb R^3
+]
+
+aceleración angular.
+
+Las propiedades conocidas son:
+
+[
+m_i>0,
+\qquad
+R_i>0,
+\qquad
+\tau_i,
+\qquad
+\boldsymbol\mu_i.
+]
+
+Aquí (\tau_i) es el tipo de partícula y (\boldsymbol\mu_i) contiene propiedades materiales, por ejemplo:
+
+[
+\boldsymbol\mu_i
+================
+
+\left(
+\rho_i,
+E_i,
+\nu_i^{\mathrm{Poisson}},
+\mu_i^{\mathrm{fric}},
+e_i^{\mathrm{rest}}
+\right).
+]
+
+Para una esfera maciza isotrópica:
+
+[
+I_i
+===
+
+\frac25m_iR_i^2.
+]
+
+Su tensor de inercia es:
+
+[
+\mathbf I_i=I_i\mathbf I_3.
+]
+
+Las matrices globales conocidas son:
+
+[
+\mathbf M
+=========
+
+\operatorname{diag}
+\left(
+m_1\mathbf I_3,\ldots,m_N\mathbf I_3
+\right),
+]
+
+[
+\mathbf J
+=========
+
+\operatorname{diag}
+\left(
+I_1\mathbf I_3,\ldots,I_N\mathbf I_3
+\right).
+]
+
+No se aprenden ni la masa ni la inercia.
+
+---
+
+# 4. Representación de la pared móvil
+
+## 4.1. SDF de referencia
+
+Sea
+
+[
+\varphi_0:\mathbb R^3\to\mathbb R
+]
+
+la SDF del molino en una configuración de referencia.
+
+Usaremos la convención:
+
+[
+\varphi_0(\mathbf x)>0
+\quad\Longleftrightarrow\quad
+\mathbf x
+\text{ está en la región interior admisible},
+]
+
+[
+\varphi_0(\mathbf x)=0
+\quad\Longleftrightarrow\quad
+\mathbf x
+\text{ pertenece a la pared}.
+]
+
+La normal inducida por la SDF apunta hacia el interior.
+
+## 4.2. Movimiento rígido del molino
+
+Si la pared tiene pose
+
+[
+\bigl(Q_W(t),\mathbf c_W(t)\bigr),
+]
+
+la SDF dependiente del tiempo puede escribirse como
+
+[
+\boxed{
+\varphi(\mathbf x,t)
+====================
+
+\varphi_0
+\left(
+Q_W(t)^\top
+\bigl(\mathbf x-\mathbf c_W(t)\bigr)
+\right).
+}
+]
+
+Sea
+
+[
+\mathbf y
+=========
+
+Q_W(t)^\top
+\bigl(\mathbf x-\mathbf c_W(t)\bigr).
+]
+
+Entonces:
+
+[
+\nabla_{\mathbf x}\varphi(\mathbf x,t)
+======================================
+
+Q_W(t)\nabla\varphi_0(\mathbf y).
+]
+
+Esta formulación evita regenerar una SDF completa para cada pose cuando el movimiento es rígido.
+
+## 4.3. Consulta por partícula
+
+Para cada partícula:
+
+[
+\varphi_i^k
+===========
+
+\varphi(\mathbf q_i^k,t_k),
+]
+
+[
+\boldsymbol\gamma_i^k
+=====================
+
+\nabla_{\mathbf x}
+\varphi(\mathbf q_i^k,t_k),
+]
+
+[
+\boldsymbol\nu_i^k
+==================
+
+\frac{\boldsymbol\gamma_i^k}
+{|\boldsymbol\gamma_i^k|+\varepsilon}.
+]
+
+La normal (\boldsymbol\nu_i) apunta hacia el interior.
+
+El punto de pared más próximo se aproxima por:
+
+[
+\boxed{
+\mathbf x_{W,i}^k
+=================
+
+## \mathbf q_i^k
+
+\varphi_i^k\boldsymbol\nu_i^k.
+}
+]
+
+Esta fórmula es exacta localmente para una SDF exacta y suficientemente regular.
+
+---
+
+# 5. Velocidad local explícita de la pared
+
+La velocidad de una pared rígida en un punto espacial (\mathbf x) es:
+
+[
+\boxed{
+\mathbf v_W(\mathbf x,t)
+========================
+
+\mathbf V_W(t)
++
+\boldsymbol\Omega_W(t)
+\times
+\bigl(
+\mathbf x-\mathbf c_W(t)
+\bigr).
+}
+]
+
+Por tanto, la velocidad local de pared asociada a la partícula (i) es:
+
+[
+\boxed{
+\mathbf v_{W,i}^k
+=================
+
+\mathbf v_W
+\left(
+\mathbf x_{W,i}^k,t_k
+\right).
+}
+]
+
+Esta variable es una entrada física obligatoria de SLGNN-v2.
+
+La SDF continúa describiendo:
+
+* posición de la pared;
+* distancia;
+* normal;
+* geometría local.
+
+La velocidad (\mathbf v_W) describe:
+
+* traslación local;
+* rotación tangencial;
+* sentido de movimiento;
+* velocidad de arrastre de la superficie.
+
+Esto elimina el punto ciego de una pared cilíndrica axisimétrica para la cual
+
+[
+\partial_t\varphi=0
+]
+
+aunque
+
+[
+\mathbf v_W\neq0.
+]
+
+---
+
+# 6. Geometría partícula–pared
+
+La separación superficial se define por:
+
+[
+g_{iW}^k
+========
+
+\varphi_i^k-R_i.
+]
+
+Entonces:
+
+[
+g_{iW}^k>0
+]
+
+significa separación;
+
+[
+g_{iW}^k=0
+]
+
+significa contacto geométrico;
+
+[
+g_{iW}^k<0
+]
+
+significa penetración efectiva.
+
+Definimos una compresión suave:
+
+[
+\delta_{iW}^k
+=============
+
+\operatorname{sp}*\beta
+\left(
+-g*{iW}^k
+\right),
+]
+
+donde:
+
+[
+\operatorname{sp}_\beta(x)
+==========================
+
+\frac1\beta
+\log(1+e^{\beta x}).
+]
+
+En una implementación más estrictamente localizada puede reemplazarse la softplus por una parte positiva compacta (C^2).
+
+---
+
+# 7. Velocidad relativa en el contacto partícula–pared
+
+El vector desde el centro de la partícula hacia su punto de contacto es:
+
+[
+\mathbf r_{iW}^c
+================
+
+-R_i\boldsymbol\nu_i.
+]
+
+La velocidad del punto material de la partícula que toca la pared es:
+
+[
+\mathbf v_{iW}^{c}
+==================
+
+\mathbf v_i
++
+\boldsymbol\omega_i
+\times
+\mathbf r_{iW}^c.
+]
+
+Por tanto, la velocidad relativa real de contacto es:
+
+[
+\boxed{
+\mathbf w_{iW}
+==============
+
+\mathbf v_i
++
+\boldsymbol\omega_i
+\times
+\left(
+-R_i\boldsymbol\nu_i
+\right)
+-------
+
+\mathbf v_{W,i}.
+}
+]
+
+Su componente normal es:
+
+[
+w_{iW,n}
+========
+
+\boldsymbol\nu_i^\top\mathbf w_{iW}.
+]
+
+Como (\boldsymbol\nu_i) apunta hacia el interior:
+
+[
+w_{iW,n}<0
+]
+
+significa acercamiento hacia la pared.
+
+El proyector tangencial es:
+
+[
+\mathbf P_{iW}
+==============
+
+## \mathbf I_3
+
+\boldsymbol\nu_i\boldsymbol\nu_i^\top.
+]
+
+La velocidad relativa tangencial es:
+
+[
+\mathbf w_{iW,\tau}
+===================
+
+\mathbf P_{iW}\mathbf w_{iW}.
+]
+
+Estas son las variables correctas para modelar amortiguamiento y fricción con una pared móvil.
+
+---
+
+# 8. Grafo dinámico partícula–partícula
+
+El conjunto de nodos es:
+
+[
+\mathcal V={1,\ldots,N}.
+]
+
+Se construye una lista de vecinos candidata:
+
+[
+\mathcal E_{\mathrm{list}}^k
+============================
+
+\left{
+{i,j}:
+i<j,;
+d_{ij}^k<r_{\mathrm{list}}
+\right}.
+]
+
+Aquí:
+
+[
+r_{\mathrm{list}}>r_{\mathrm{off}}
+]
+
+es un radio de lista de vecinos con margen o *skin*.
+
+Para cada par:
+
+[
+\mathbf r_{ij}
+==============
+
+\mathbf q_j-\mathbf q_i,
+]
+
+[
+d_{ij}
+======
+
+|\mathbf r_{ij}|,
+]
+
+[
+\mathbf e_{ij}
+==============
+
+\frac{\mathbf r_{ij}}
+{d_{ij}+\varepsilon}.
+]
+
+La separación superficial es:
+
+[
+g_{ij}
+======
+
+d_{ij}-(R_i+R_j).
+]
+
+La compresión suave es:
+
+[
+\delta_{ij}
+===========
+
+\operatorname{sp}*\beta(-g*{ij}).
+]
+
+---
+
+# 9. Punto común de contacto partícula–partícula
+
+Para construir torques que conserven momento angular, conviene usar un punto común de contacto.
+
+Definimos:
+
+[
+\ell_i
+======
+
+d_{ij}
+\frac{R_i}{R_i+R_j},
+]
+
+[
+\ell_j
+======
+
+d_{ij}
+\frac{R_j}{R_i+R_j}.
+]
+
+Entonces:
+
+[
+\ell_i+\ell_j=d_{ij}.
+]
+
+El punto común es:
+
+[
+\mathbf x_{ij}^c
+================
+
+# \mathbf q_i+\ell_i\mathbf e_{ij}
+
+\mathbf q_j-\ell_j\mathbf e_{ij}.
+]
+
+Los brazos de contacto son:
+
+[
+\mathbf r_{i,ij}^c
+==================
+
+\ell_i\mathbf e_{ij},
+]
+
+[
+\mathbf r_{j,ij}^c
+==================
+
+-\ell_j\mathbf e_{ij}.
+]
+
+Las velocidades de los puntos de contacto son:
+
+[
+\mathbf v_{i,ij}^c
+==================
+
+\mathbf v_i
++
+\boldsymbol\omega_i
+\times
+\mathbf r_{i,ij}^c,
+]
+
+[
+\mathbf v_{j,ij}^c
+==================
+
+\mathbf v_j
++
+\boldsymbol\omega_j
+\times
+\mathbf r_{j,ij}^c.
+]
+
+Definimos la velocidad relativa de (j) respecto de (i):
+
+[
+\boxed{
+\mathbf u_{ij}^c
+================
+
+## \mathbf v_{j,ij}^c
+
+\mathbf v_{i,ij}^c.
+}
+]
+
+Su componente normal es:
+
+[
+u_{ij,n}
+========
+
+\mathbf e_{ij}^\top
+\mathbf u_{ij}^c.
+]
+
+La componente tangencial es:
+
+[
+\mathbf u_{ij,\tau}
+===================
+
+\left(
+\mathbf I_3
+-----------
+
+\mathbf e_{ij}\mathbf e_{ij}^\top
+\right)
+\mathbf u_{ij}^c.
+]
+
+En aproximación puramente translacional se toma:
+
+[
+\boldsymbol\omega_i=0.
+]
+
+---
+
+# 10. Funciones de corte suaves
+
+La topología discreta del grafo no debe producir saltos de fuerza.
+
+Escogemos dos radios:
+
+[
+r_{\mathrm{on}}<r_{\mathrm{off}}<r_{\mathrm{list}}.
+]
+
+Definimos:
+
+[
+s(d)
+====
+
+\frac{d-r_{\mathrm{on}}}
+{r_{\mathrm{off}}-r_{\mathrm{on}}}.
+]
+
+La ventana (C^2) es:
+
+[
+\chi_{\mathrm{pp}}(d)
+=====================
+
+\begin{cases}
+1,
+&
+d\le r_{\mathrm{on}},
+[1mm]
+1-10s^3+15s^4-6s^5,
+&
+r_{\mathrm{on}}<d<r_{\mathrm{off}},
+[1mm]
+0,
+&
+d\ge r_{\mathrm{off}}.
+\end{cases}
+]
+
+Satisface:
+
+[
+\chi_{\mathrm{pp}}(r_{\mathrm{off}})=0,
+]
+
+[
+\chi_{\mathrm{pp}}'(r_{\mathrm{off}})=0,
+]
+
+[
+\chi_{\mathrm{pp}}''(r_{\mathrm{off}})=0.
+]
+
+La misma filosofía se usa para una ventana partícula–pared:
+
+[
+\chi_{\mathrm{pW}}(g_{iW}).
+]
+
+La ventana debe multiplicar:
+
+[
+\boxed{
+\text{mensajes}
++
+\text{energías}
++
+\text{Rayleigh}
++
+\text{fuerzas residuales}.
+}
+]
+
+No basta con aplicarla únicamente a la energía final.
+
+---
+
+# 11. Principio de equivariancia de SLGNN-v2
+
+La versión 2 no introduce una MLP que transforme escalares directamente en vectores cartesianos.
+
+Todas las redes neuronales internas producen:
+
+[
+\boxed{
+\text{escalares invariantes}.
+}
+]
+
+Los vectores físicos se construyen usando bases geométricas equivariantes:
+
+[
+\mathbf e_{ij},
+\qquad
+\boldsymbol\nu_i,
+\qquad
+\mathbf u_{ij,\tau},
+\qquad
+\mathbf w_{iW,\tau}.
+]
+
+Bajo una transformación
+
+[
+\mathbf q_i'
+============
+
+Q\mathbf q_i+\mathbf b,
+\qquad
+Q\in SO(3),
+]
+
+se transforman también:
+
+[
+\mathbf v_i'=Q\mathbf v_i,
+]
+
+[
+\boldsymbol\omega_i'=Q\boldsymbol\omega_i,
+]
+
+[
+\mathbf g'=Q\mathbf g,
+]
+
+[
+\mathbf v_W'=Q\mathbf v_W,
+]
+
+[
+\boldsymbol\nu_i'=Q\boldsymbol\nu_i.
+]
+
+Los escalares
+
+[
+d_{ij},
+\quad
+g_{ij},
+\quad
+\delta_{ij},
+\quad
+u_{ij,n},
+\quad
+|\mathbf u_{ij,\tau}|,
+\quad
+w_{iW,n},
+\quad
+|\mathbf w_{iW,\tau}|
+]
+
+permanecen invariantes.
+
+Por tanto:
+
+[
+\widehat{\mathbf a}_i'
+======================
+
+Q\widehat{\mathbf a}_i,
+]
+
+[
+\widehat{\boldsymbol\alpha}_i'
+==============================
+
+Q\widehat{\boldsymbol\alpha}_i.
+]
+
+La equivariancia se entiende respecto de una transformación simultánea de partículas, gravedad, pared y cinemática externa.
+
+---
+
+# 12. Embedding material
+
+Para cada partícula se construye:
+
+[
+\boldsymbol\eta_i
+=================
+
+\operatorname{MLP}_{\mathrm{mat}}
+\left(
+\operatorname{onehot}(\tau_i),
+m_i,
+R_i,
+\boldsymbol\mu_i
+\right).
+]
+
+Para la pared puede existir un embedding material:
+
+[
+\boldsymbol\eta_W
+=================
+
+\operatorname{MLP}_{\mathrm{wall}}
+\left(
+\boldsymbol\mu_W
+\right).
+]
+
+Estos embeddings son escalares latentes, no vectores geométricos.
+
+---
+
+# 13. Descriptores simétricos de arista
+
+Para evitar que la energía dependa del orden (i,j), definimos:
+
+[
+\boldsymbol\eta_{ij}^{+}
+========================
+
+\boldsymbol\eta_i+\boldsymbol\eta_j,
+]
+
+[
+\boldsymbol\eta_{ij}^{-}
+========================
+
+\left|
+\boldsymbol\eta_i-\boldsymbol\eta_j
+\right|,
+]
+
+[
+\boldsymbol\eta_{ij}^{\odot}
+============================
+
+\boldsymbol\eta_i\odot\boldsymbol\eta_j.
+]
+
+El descriptor conservativo de arista es:
+
+[
+\mathbf s_{ij,V}
+================
+
+\left[
+\boldsymbol\eta_{ij}^{+},
+\boldsymbol\eta_{ij}^{-},
+\boldsymbol\eta_{ij}^{\odot},
+d_{ij},
+g_{ij},
+\delta_{ij},
+\chi_{\mathrm{pp}}(d_{ij})
+\right].
+]
+
+Este descriptor satisface:
+
+[
+\mathbf s_{ij,V}
+================
+
+\mathbf s_{ji,V}.
+]
+
+El descriptor partícula–pared es:
+
+[
+\mathbf s_{iW,V}
+================
+
+\left[
+\boldsymbol\eta_i,
+\boldsymbol\eta_W,
+\varphi_i,
+g_{iW},
+\delta_{iW},
+\chi_{\mathrm{pW}}(g_{iW})
+\right].
+]
+
+Opcionalmente pueden añadirse invariantes de curvatura obtenidos desde el Hessiano de la SDF.
+
+---
+
+# 14. Tres canales neuronales
+
+SLGNN-v2 separa tres canales:
+
+[
+\boxed{
+\operatorname{Processor}
+========================
+
+\left(
+\operatorname{Processor}_V,
+\operatorname{Processor}_R,
+\operatorname{Processor}_H
+\right).
+}
+]
+
+## 14.1. Canal conservativo (V)
+
+Aprende:
+
+[
+V_{\mathrm{pp},\theta},
+\qquad
+V_{\mathrm{pW},\theta}.
+]
+
+No recibe velocidades actuales ni historiales arbitrarios.
+
+## 14.2. Canal de Rayleigh (R)
+
+Aprende coeficientes no negativos de disipación:
+
+[
+c_{ij,n},
+\qquad
+c_{ij,\tau},
+\qquad
+c_{iW,n},
+\qquad
+c_{iW,\tau}.
+]
+
+Para garantizar pasividad, estos coeficientes dependen principalmente de:
+
+* configuración;
+* materiales;
+* proximidad;
+* historial escalar de contacto.
+
+No deben depender arbitrariamente de la velocidad instantánea.
+
+## 14.3. Canal histórico (H)
+
+Representa fenómenos que no pueden describirse mediante una función de Rayleigh instantánea:
+
+* fricción estática;
+* stick–slip;
+* histéresis;
+* memoria tangencial;
+* efectos no resueltos.
+
+Este canal debe estar fuertemente regularizado y no producir vectores cartesianos directamente.
+
+---
+
+# 15. Processor escalar simétrico
+
+Para cada canal (B\in{V,R,H}), se inicializan:
+
+[
+\mathbf h_{i,B}^{0}
+===================
+
+\operatorname{Enc}*{B}^{\mathrm{node}}
+(\mathbf s*{i,B}),
+]
+
+[
+\mathbf h_{ij,B}^{0}
+====================
+
+\operatorname{Enc}*{B}^{\mathrm{edge}}
+(\mathbf s*{ij,B}).
+]
+
+En la capa (\ell), definimos un mensaje no dirigido:
+
+[
+\mathbf m_{ij,B}^{\ell}
+=======================
+
+\chi_{\mathrm{pp}}(d_{ij})
+,
+\psi_{E,B}^{\ell}
+\left(
+\mathbf h_{ij,B}^{\ell},
+\mathbf h_{i,B}^{\ell}
++
+\mathbf h_{j,B}^{\ell},
+\left|
+\mathbf h_{i,B}^{\ell}
+----------------------
+
+\mathbf h_{j,B}^{\ell}
+\right|
+\right).
+]
+
+Por construcción:
+
+[
+\mathbf m_{ij,B}^{\ell}
+=======================
+
+\mathbf m_{ji,B}^{\ell}.
+]
+
+La agregación nodal es:
+
+[
+\overline{\mathbf m}_{i,B}^{\ell}
+=================================
+
+\sum_{j\in\mathcal N(i)}
+\mathbf m_{ij,B}^{\ell}.
+]
+
+La actualización nodal es:
+
+[
+\mathbf h_{i,B}^{\ell+1}
+========================
+
+\mathbf h_{i,B}^{\ell}
++
+\psi_{N,B}^{\ell}
+\left(
+\mathbf h_{i,B}^{\ell},
+\overline{\mathbf m}*{i,B}^{\ell},
+\mathbf s*{i,B}
+\right).
+]
+
+La actualización de arista es:
+
+[
+\begin{aligned}
+\mathbf h_{ij,B}^{\ell+1}
+={}&
+\mathbf h_{ij,B}^{\ell}
+\
+&+
+\chi_{\mathrm{pp}}(d_{ij})
+\psi_{EE,B}^{\ell}
+\left(
+\mathbf h_{ij,B}^{\ell},
+\mathbf h_{i,B}^{\ell+1}
++
+\mathbf h_{j,B}^{\ell+1},
+\left|
+\mathbf h_{i,B}^{\ell+1}
+------------------------
+
+\mathbf h_{j,B}^{\ell+1}
+\right|
+\right).
+\end{aligned}
+]
+
+Después de (L) capas:
+
+[
+\mathbf z_{i,B}
+===============
+
+\mathbf h_{i,B}^{L},
+]
+
+[
+\mathbf z_{ij,B}
+================
+
+\mathbf h_{ij,B}^{L}.
+]
+
+Todas las activaciones del canal energético deben ser al menos (C^2), por ejemplo:
+
+[
+\operatorname{softplus},
+\qquad
+\operatorname{squareplus}.
+]
+
+---
+
+# 16. Energía cinética conocida
+
+La energía cinética translacional es:
+
+[
+T_{\mathrm{tr}}
+===============
+
+\frac12
+\sum_{i=1}^N
+m_i|\mathbf v_i|^2.
+]
+
+La energía cinética rotacional es:
+
+[
+T_{\mathrm{rot}}
+================
+
+\frac12
+\sum_{i=1}^N
+I_i|\boldsymbol\omega_i|^2.
+]
+
+Por tanto:
+
+[
+\boxed{
+T
+=
+
+T_{\mathrm{tr}}
++
+T_{\mathrm{rot}}.
+}
+]
+
+No se necesita una cabeza neuronal para esta energía.
+
+---
+
+# 17. Energía gravitacional
+
+Sea:
+
+[
+\mathbf g\in\mathbb R^3
+]
+
+el vector aceleración gravitacional.
+
+Definimos:
+
+[
+\boxed{
+V_g(\mathbf q)
+==============
+
+-\sum_{i=1}^N
+m_i\mathbf g^\top\mathbf q_i.
+}
+]
+
+Entonces:
+
+[
+-\nabla_{\mathbf q_i}V_g
+========================
+
+m_i\mathbf g.
+]
+
+Esta expresión equivale a:
+
+[
+V_{g,i}=m_ig_0h_i
+]
+
+cuando la gravedad apunta verticalmente hacia abajo.
+
+---
+
+# 18. Energía conservativa partícula–partícula
+
+La cabeza energética produce un escalar por arista no dirigida:
+
+[
+\widetilde U_{ij,\theta}^{\mathrm{pp}}
+======================================
+
+\operatorname{Head}*{\mathrm{pp}}^V
+\left(
+\mathbf z*{ij,V},
+\mathbf s_{ij,V}
+\right).
+]
+
+La contribución final es:
+
+[
+U_{ij,\theta}^{\mathrm{pp}}
+===========================
+
+\chi_{\mathrm{pp}}(d_{ij})
+\widetilde U_{ij,\theta}^{\mathrm{pp}}.
+]
+
+La energía total es:
+
+[
+\boxed{
+V_{\mathrm{pp},\theta}
+======================
+
+\sum_{{i,j}\in\mathcal E_{\mathrm{list}}}
+U_{ij,\theta}^{\mathrm{pp}}.
+}
+]
+
+Cada par se suma una sola vez.
+
+Como el potencial es un escalar dependiente únicamente de invariantes geométricos, las fuerzas conservativas internas satisfacen globalmente:
+
+[
+\sum_i
+\mathbf F_{i,\mathrm{pp}}^{\mathrm{cons}}
+=0,
+]
+
+y, en ausencia de campos externos:
+
+[
+\sum_i
+\mathbf q_i
+\times
+\mathbf F_{i,\mathrm{pp}}^{\mathrm{cons}}
+=0.
+]
+
+Esto se obtiene por invariancia traslacional y rotacional del potencial.
+
+---
+
+# 19. Energía conservativa partícula–pared
+
+Para cada partícula:
+
+[
+\widetilde U_{iW,\theta}^{\mathrm{pW}}
+======================================
+
+\operatorname{Head}*{\mathrm{pW}}^V
+\left(
+\mathbf z*{i,V},
+\mathbf s_{iW,V}
+\right).
+]
+
+La energía de interacción es:
+
+[
+U_{iW,\theta}^{\mathrm{pW}}
+===========================
+
+\chi_{\mathrm{pW}}(g_{iW})
+\widetilde U_{iW,\theta}^{\mathrm{pW}}.
+]
+
+La energía total es:
+
+[
+\boxed{
+V_{\mathrm{pW},\theta}(\mathbf q,t)
+===================================
+
+\sum_i
+U_{iW,\theta}^{\mathrm{pW}}.
+}
+]
+
+No es la energía propia de la pared. Es el potencial conservativo de contacto partícula–pared.
+
+La fuerza conservativa es:
+
+[
+\mathbf F_{iW}^{\mathrm{cons}}
+==============================
+
+-\nabla_{\mathbf q_i}
+V_{\mathrm{pW},\theta}.
+]
+
+Si la dependencia principal es mediante (\varphi_i):
+
+[
+\mathbf F_{iW}^{\mathrm{cons}}
+==============================
+
+*
+
+\frac{\partial U_{iW}^{\mathrm{pW}}}
+{\partial\varphi_i}
+\nabla_{\mathbf q_i}\varphi_i.
+]
+
+Por tanto, su dirección normal emerge de la SDF.
+
+---
+
+# 20. Lagrangiano de SLGNN-v2
+
+El potencial total es:
+
+[
+V_\theta
+========
+
+V_g
++
+V_{\mathrm{pp},\theta}
++
+V_{\mathrm{pW},\theta}.
+]
+
+El lagrangiano translacional-rotacional es:
+
+[
+\boxed{
+L_\theta
+========
+
+T_{\mathrm{tr}}
++
+T_{\mathrm{rot}}
+----------------
+
+V_\theta.
+}
+]
+
+Para las ecuaciones traslacionales, como la matriz de masa es conocida y constante:
+
+[
+\frac{d}{dt}
+\frac{\partial L}{\partial\mathbf v}
+====================================
+
+\mathbf M\mathbf a.
+]
+
+No es necesario aprender ni invertir un Hessiano general del lagrangiano.
+
+---
+
+# 21. Parte negativa suave de una velocidad normal
+
+La disipación normal debe actuar principalmente durante el acercamiento.
+
+Definimos:
+
+[
+\rho^-_\beta(x)
+===============
+
+\operatorname{sp}_\beta(-x).
+]
+
+Entonces:
+
+[
+\rho^-_\beta(x)
+\approx
+\max(-x,0).
+]
+
+Para un contacto partícula–partícula:
+
+[
+u_{ij,n}<0
+]
+
+indica acercamiento.
+
+Para un contacto partícula–pared:
+
+[
+w_{iW,n}<0
+]
+
+indica acercamiento.
+
+---
+
+# 22. Coeficientes de disipación aprendidos
+
+La cabeza de Rayleigh predice:
+
+[
+c_{ij,n}
+========
+
+\operatorname{softplus}
+\left(
+\operatorname{Head}*{\mathrm{pp},n}^R
+(\mathbf z*{ij,R})
+\right),
+]
+
+[
+c_{ij,\tau}
+===========
+
+\operatorname{softplus}
+\left(
+\operatorname{Head}*{\mathrm{pp},\tau}^R
+(\mathbf z*{ij,R})
+\right).
+]
+
+Para la pared:
+
+[
+c_{iW,n}
+========
+
+\operatorname{softplus}
+\left(
+\operatorname{Head}*{\mathrm{pW},n}^R
+(\mathbf z*{i,R})
+\right),
+]
+
+[
+c_{iW,\tau}
+===========
+
+\operatorname{softplus}
+\left(
+\operatorname{Head}*{\mathrm{pW},\tau}^R
+(\mathbf z*{i,R})
+\right).
+]
+
+Estos coeficientes son no negativos.
+
+La recomendación principal es que dependan de configuración, material y memoria, pero no de manera arbitraria de la velocidad instantánea. Así, la función de Rayleigh permanece convexa respecto de las velocidades relativas.
+
+---
+
+# 23. Rayleigh partícula–partícula
+
+Definimos:
+
+[
+\boxed{
+\mathcal R_{\mathrm{pp},\theta}
+===============================
+
+\frac12
+\sum_{{i,j}}
+\chi_{\mathrm{pp}}(d_{ij})
+\left[
+c_{ij,n}
+\left(
+\rho^-*\beta(u*{ij,n})
+\right)^2
++
+c_{ij,\tau}
+|\mathbf u_{ij,\tau}|^2
+\right].
+}
+]
+
+La fuerza disipativa generalizada es:
+
+[
+\boxed{
+\mathbf f_{\mathrm{pp}}^R
+=========================
+
+*
+
+\nabla_{\mathbf v}
+\mathcal R_{\mathrm{pp},\theta}.
+}
+]
+
+Los torques disipativos son:
+
+[
+\boxed{
+\boldsymbol\tau_{\mathrm{pp}}^R
+===============================
+
+*
+
+\nabla_{\boldsymbol\omega}
+\mathcal R_{\mathrm{pp},\theta}.
+}
+]
+
+Para cada par se obtiene automáticamente:
+
+[
+\mathbf f_{j\leftarrow i}^R
+===========================
+
+*
+
+\mathbf f_{i\leftarrow j}^R.
+]
+
+Por tanto:
+
+[
+\sum_i\mathbf f_{i,\mathrm{pp}}^R=0.
+]
+
+Al usar el punto común de contacto, los torques satisfacen:
+
+[
+\mathbf q_i\times\mathbf f_i^R
++
+\mathbf q_j\times\mathbf f_j^R
++
+\boldsymbol\tau_i^R
++
+\boldsymbol\tau_j^R
+===================
+
+0.
+
+]
+
+Por consiguiente, las interacciones internas conservan exactamente el momento angular total orbital más rotacional.
+
+---
+
+# 24. Rayleigh partícula–pared
+
+La función de disipación de pared es:
+
+[
+\boxed{
+\mathcal R_{\mathrm{pW},\theta}
+===============================
+
+\frac12
+\sum_i
+\chi_{\mathrm{pW}}(g_{iW})
+\left[
+c_{iW,n}
+\left(
+\rho^-*\beta(w*{iW,n})
+\right)^2
++
+c_{iW,\tau}
+|\mathbf w_{iW,\tau}|^2
+\right].
+}
+]
+
+La fuerza disipativa sobre las partículas es:
+
+[
+\boxed{
+\mathbf f_{\mathrm{pW}}^R
+=========================
+
+*
+
+\nabla_{\mathbf v}
+\mathcal R_{\mathrm{pW},\theta}.
+}
+]
+
+El torque es:
+
+[
+\boxed{
+\boldsymbol\tau_{\mathrm{pW}}^R
+===============================
+
+*
+
+\nabla_{\boldsymbol\omega}
+\mathcal R_{\mathrm{pW},\theta}.
+}
+]
+
+El signo negativo es obligatorio.
+
+La fuerza tangencial resultante se opone a:
+
+[
+\mathbf w_{iW,\tau},
+]
+
+es decir, al deslizamiento relativo entre el punto de contacto de la partícula y la pared.
+
+---
+
+# 25. Función de Rayleigh total
+
+Definimos:
+
+[
+\boxed{
+\mathcal R_\theta
+=================
+
+\mathcal R_{\mathrm{pp},\theta}
++
+\mathcal R_{\mathrm{pW},\theta}.
+}
+]
+
+Las fuerzas y torques de Rayleigh son:
+
+[
+\boxed{
+\mathbf f_\theta^R
+==================
+
+-\nabla_{\mathbf v}\mathcal R_\theta,
+}
+]
+
+[
+\boxed{
+\boldsymbol\tau_\theta^R
+========================
+
+-\nabla_{\boldsymbol\omega}\mathcal R_\theta.
+}
+]
+
+En ningún caso debe usarse:
+
+[
++\nabla_{\mathbf v}\mathcal R_\theta.
+]
+
+---
+
+# 26. Rama histórica o residual estructurada
+
+Una fuerza residual cartesiana arbitraria no es aceptable porque:
+
+* puede romper equivariancia;
+* puede romper acción–reacción;
+* puede duplicar lo aprendido por (V) y (\mathcal R);
+* dificulta la interpretabilidad.
+
+La rama histórica debe predecir solamente amplitudes escalares.
+
+## 26.1. Historial de contacto
+
+Para cada par puede construirse:
+
+[
+\mathcal H_{ij}^k
+=================
+
+\left{
+g_{ij}^{k-r},
+u_{ij,n}^{k-r},
+|\mathbf u_{ij,\tau}^{k-r}|,
+\delta_{ij}^{k-r}
+\right}_{r=0}^{H-1}.
+]
+
+Para la pared:
+
+[
+\mathcal H_{iW}^k
+=================
+
+\left{
+g_{iW}^{k-r},
+w_{iW,n}^{k-r},
+|\mathbf w_{iW,\tau}^{k-r}|,
+\delta_{iW}^{k-r}
+\right}_{r=0}^{H-1}.
+]
+
+Estos historiales son invariantes.
+
+## 26.2. Variable tangencial interna opcional
+
+Puede almacenarse una variable equivariantemente transportada:
+
+[
+\boldsymbol\xi_{ij,\tau}^{k}.
+]
+
+Su actualización física aproximada es:
+
+[
+\widetilde{\boldsymbol\xi}_{ij,\tau}^{k+1}
+==========================================
+
+\boldsymbol\xi_{ij,\tau}^{k}
++
+\Delta t,
+\mathbf u_{ij,\tau}^{k},
+]
+
+seguida de una proyección al nuevo plano tangente:
+
+[
+\boldsymbol\xi_{ij,\tau}^{k+1}
+==============================
+
+\mathbf P_{ij}^{k+1}
+\widetilde{\boldsymbol\xi}_{ij,\tau}^{k+1}.
+]
+
+Al desaparecer el contacto se reinicia o se atenúa suavemente.
+
+Esta variable representa memoria tangencial semejante a la usada en modelos DEM.
+
+## 26.3. Fuerza histórica partícula–partícula
+
+La red predice amplitudes escalares:
+
+[
+a_{ij,n}^H,
+\qquad
+a_{ij,\tau}^H,
+\qquad
+a_{ij,\xi}^H.
+]
+
+La fuerza sobre (i) puede construirse como:
+
+[
+\mathbf f_{i\leftarrow j}^H
+===========================
+
+\chi_{\mathrm{pp}}(d_{ij})
+\left[
+a_{ij,n}^H\mathbf e_{ij}
++
+a_{ij,\tau}^H
+\widehat{\mathbf u}*{ij,\tau}
++
+a*{ij,\xi}^H
+\widehat{\boldsymbol\xi}_{ij,\tau}
+\right].
+]
+
+Aquí:
+
+[
+\widehat{\mathbf u}_{ij,\tau}
+=============================
+
+\frac{\mathbf u_{ij,\tau}}
+{|\mathbf u_{ij,\tau}|+\varepsilon}.
+]
+
+Se impone:
+
+[
+\boxed{
+\mathbf f_{j\leftarrow i}^H
+===========================
+
+-\mathbf f_{i\leftarrow j}^H.
+}
+]
+
+Los torques se calculan con el punto común de contacto.
+
+## 26.4. Fuerza histórica partícula–pared
+
+Se predicen amplitudes:
+
+[
+a_{iW,n}^H,
+\qquad
+a_{iW,\tau}^H,
+\qquad
+a_{iW,\xi}^H.
+]
+
+La fuerza se construye como:
+
+[
+\mathbf f_{iW}^H
+================
+
+\chi_{\mathrm{pW}}(g_{iW})
+\left[
+a_{iW,n}^H\boldsymbol\nu_i
++
+a_{iW,\tau}^H
+\widehat{\mathbf w}*{iW,\tau}
++
+a*{iW,\xi}^H
+\widehat{\boldsymbol\xi}_{iW,\tau}
+\right].
+]
+
+El torque es:
+
+[
+\boldsymbol\tau_{iW}^H
+======================
+
+\left(
+-R_i\boldsymbol\nu_i
+\right)
+\times
+\mathbf f_{iW}^H.
+]
+
+## 26.5. Recomendación
+
+En la primera implementación de v2 conviene restringir el residual a la componente histórica tangencial:
+
+[
+\mathbf f_{ij}^H
+\approx
+a_{ij,\xi}^H
+\widehat{\boldsymbol\xi}_{ij,\tau}.
+]
+
+Esto reduce la no identificabilidad respecto de las ramas conservativa y de Rayleigh.
+
+---
+
+# 27. Fuerzas no conservativas totales
+
+La fuerza no conservativa es:
+
+[
+\boxed{
+\mathbf f_\theta^{\mathrm{nc}}
+==============================
+
+-\nabla_{\mathbf v}\mathcal R_\theta
++
+\mathbf f_\theta^H.
+}
+]
+
+El torque no conservativo es:
+
+[
+\boxed{
+\boldsymbol\tau_\theta^{\mathrm{nc}}
+====================================
+
+-\nabla_{\boldsymbol\omega}\mathcal R_\theta
++
+\boldsymbol\tau_\theta^H.
+}
+]
+
+Esta es la formulación definitiva del signo.
+
+---
+
+# 28. Ecuaciones dinámicas finales
+
+## 28.1. Traslación
+
+Para cada partícula:
+
+[
+\boxed{
+m_i\widehat{\mathbf a}_i
+========================
+
+-\nabla_{\mathbf q_i}
+\left(
+V_g
++
+V_{\mathrm{pp},\theta}
++
+V_{\mathrm{pW},\theta}
+\right)
++
+\mathbf f_{i,\theta}^{\mathrm{nc}}.
+}
+]
+
+Equivalentemente:
+
+[
+\boxed{
+\widehat{\mathbf a}
+===================
+
+\mathbf M^{-1}
+\left[
+-\nabla_{\mathbf q}V_\theta
+-\nabla_{\mathbf v}\mathcal R_\theta
++
+\mathbf f_\theta^H
+\right].
+}
+]
+
+## 28.2. Rotación
+
+Para partículas esféricas con inercia isotrópica:
+
+[
+\boxed{
+I_i\widehat{\boldsymbol\alpha}_i
+================================
+
+\boldsymbol\tau_{i,\theta}^{\mathrm{nc}}.
+}
+]
+
+En forma global:
+
+[
+\boxed{
+\widehat{\boldsymbol\alpha}
+===========================
+
+\mathbf J^{-1}
+\left[
+-\nabla_{\boldsymbol\omega}\mathcal R_\theta
++
+\boldsymbol\tau_\theta^H
+\right].
+}
+]
+
+No aparece un torque conservativo porque las esferas no tienen orientación relevante ni potencial orientacional.
+
+---
+
+# 29. Balance energético
+
+Definimos:
+
+[
+E_\theta
+========
+
+T_{\mathrm{tr}}
++
+T_{\mathrm{rot}}
++
+V_\theta.
+]
+
+Entonces:
+
+[
+\boxed{
+\frac{dE_\theta}{dt}
+====================
+
+\frac{\partial V_{\mathrm{pW},\theta}}
+{\partial t}
++
+\sum_i
+\mathbf v_i^\top
+\mathbf f_{i,\theta}^{\mathrm{nc}}
++
+\sum_i
+\boldsymbol\omega_i^\top
+\boldsymbol\tau_{i,\theta}^{\mathrm{nc}}.
+}
+]
+
+Para una fuerza de pared aplicada en el punto de contacto:
+
+[
+\mathbf v_i^\top\mathbf f_{iW}
++
+\boldsymbol\omega_i^\top\boldsymbol\tau_{iW}
+============================================
+
+(\mathbf v_{iW}^c)^\top\mathbf f_{iW}.
+]
+
+Como:
+
+[
+\mathbf v_{iW}^c
+================
+
+\mathbf w_{iW}
++
+\mathbf v_{W,i},
+]
+
+se obtiene:
+
+[
+\boxed{
+(\mathbf v_{iW}^c)^\top\mathbf f_{iW}
+=====================================
+
+\mathbf w_{iW}^\top\mathbf f_{iW}
++
+\mathbf v_{W,i}^\top\mathbf f_{iW}.
+}
+]
+
+El primer término representa disipación relativa:
+
+[
+\mathbf w_{iW}^\top\mathbf f_{iW}^R
+\leq0.
+]
+
+El segundo representa trabajo de la pared:
+
+[
+\mathbf v_{W,i}^\top\mathbf f_{iW},
+]
+
+que puede ser positivo.
+
+Por tanto, la pared puede inyectar energía incluso cuando:
+
+[
+\partial_t\varphi=0.
+]
+
+Esto ocurre, por ejemplo, en una pared cilíndrica que rota tangencialmente.
+
+---
+
+# 30. Diferenciabilidad de la SDF
+
+Para que:
+
+[
+-\nabla_{\mathbf q_i}
+V_{\mathrm{pW},\theta}
+]
+
+sea correcto, debe mantenerse dentro del grafo de autodiferenciación la composición:
+
+[
+\mathbf q_i
+\longmapsto
+\varphi(\mathbf q_i,t)
+\longmapsto
+U_{iW}.
+]
+
+No es correcto:
+
+1. interpolar externamente (\varphi_i);
+2. convertirla en un tensor desconectado;
+3. usarla en la cabeza energética.
+
+En ese caso, autodiff no detectaría:
+
+[
+\frac{\partial\varphi_i}
+{\partial\mathbf q_i}.
+]
+
+Las opciones recomendadas son:
+
+* SDF analítica;
+* transformación rígida de una SDF analítica;
+* interpolación B-spline diferenciable;
+* interpolación cúbica diferenciable;
+* operación personalizada cuya derivada sea (\nabla\varphi).
+
+Una interpolación trilineal es diferenciable por tramos, pero su gradiente cambia al atravesar celdas. Puede utilizarse como baseline, aunque una interpolación más suave es preferible para una arquitectura energética.
+
+---
+
+# 31. Integración temporal
+
+Como existen fuerzas dependientes de velocidad, el esquema inicial recomendado es Euler semiimplícito:
+
+[
+\mathbf v_i^{k+1}
+=================
+
+\mathbf v_i^k
++
+\Delta t,
+\widehat{\mathbf a}_i^k,
+]
+
+[
+\mathbf q_i^{k+1}
+=================
+
+\mathbf q_i^k
++
+\Delta t,
+\mathbf v_i^{k+1}.
+]
+
+Para la rotación:
+
+[
+\boldsymbol\omega_i^{k+1}
+=========================
+
+\boldsymbol\omega_i^k
++
+\Delta t,
+\widehat{\boldsymbol\alpha}_i^k.
+]
+
+Este integrador es más estable que Euler explícito puro para muchas dinámicas mecánicas.
+
+Una variante posterior puede usar un predictor–corrector:
+
+[
+\mathbf v_i^{k+\frac12}
+=======================
+
+\mathbf v_i^k
++
+\frac{\Delta t}{2}
+\widehat{\mathbf a}_i^k,
+]
+
+[
+\mathbf q_i^{k+1}
+=================
+
+\mathbf q_i^k
++
+\Delta t,
+\mathbf v_i^{k+\frac12},
+]
+
+recalculando geometría, grafo y aceleración al final del paso.
+
+---
+
+# 32. Forward pass completo
+
+En cada tiempo (t_k):
+
+### Paso 1: cargar el estado
+
+[
+\left{
+\mathbf q_i^k,
+\mathbf v_i^k,
+\boldsymbol\omega_i^k,
+m_i,
+R_i,
+\tau_i,
+\boldsymbol\mu_i
+\right}_{i=1}^N.
+]
+
+### Paso 2: cargar la cinemática del molino
+
+[
+Q_W^k,
+\quad
+\mathbf c_W^k,
+\quad
+\mathbf V_W^k,
+\quad
+\boldsymbol\Omega_W^k.
+]
+
+### Paso 3: consultar la SDF
+
+[
+\varphi_i^k,
+\quad
+\boldsymbol\gamma_i^k,
+\quad
+\boldsymbol\nu_i^k,
+\quad
+\mathbf x_{W,i}^k.
+]
+
+### Paso 4: calcular la velocidad de pared
+
+[
+\mathbf v_{W,i}^k
+=================
+
+\mathbf V_W^k
++
+\boldsymbol\Omega_W^k
+\times
+\left(
+\mathbf x_{W,i}^k-\mathbf c_W^k
+\right).
+]
+
+### Paso 5: construir el grafo candidato
+
+[
+\mathcal E_{\mathrm{list}}^k.
+]
+
+### Paso 6: calcular geometría de pares
+
+[
+d_{ij},
+\quad
+\mathbf e_{ij},
+\quad
+g_{ij},
+\quad
+\delta_{ij},
+\quad
+\chi_{ij}.
+]
+
+### Paso 7: calcular velocidades de contacto
+
+[
+\mathbf u_{ij}^c,
+\quad
+u_{ij,n},
+\quad
+\mathbf u_{ij,\tau},
+]
+
+[
+\mathbf w_{iW},
+\quad
+w_{iW,n},
+\quad
+\mathbf w_{iW,\tau}.
+]
+
+### Paso 8: ejecutar los processors
+
+[
+\operatorname{Processor}_V,
+\quad
+\operatorname{Processor}_R,
+\quad
+\operatorname{Processor}_H.
+]
+
+### Paso 9: construir energías
+
+[
+V_g,
+\quad
+V_{\mathrm{pp},\theta},
+\quad
+V_{\mathrm{pW},\theta}.
+]
+
+### Paso 10: construir Rayleigh
+
+[
+\mathcal R_{\mathrm{pp},\theta},
+\quad
+\mathcal R_{\mathrm{pW},\theta}.
+]
+
+### Paso 11: calcular fuerzas y torques
+
+[
+\mathbf F^{\mathrm{cons}}
+=========================
+
+-\nabla_{\mathbf q}V_\theta,
+]
+
+[
+\mathbf f^R
+===========
+
+-\nabla_{\mathbf v}\mathcal R_\theta,
+]
+
+[
+\boldsymbol\tau^R
+=================
+
+-\nabla_{\boldsymbol\omega}\mathcal R_\theta.
+]
+
+### Paso 12: añadir la rama histórica
+
+[
+\mathbf f^{\mathrm{nc}}
+=======================
+
+\mathbf f^R+\mathbf f^H,
+]
+
+[
+\boldsymbol\tau^{\mathrm{nc}}
+=============================
+
+\boldsymbol\tau^R+\boldsymbol\tau^H.
+]
+
+### Paso 13: obtener aceleraciones
+
+[
+\widehat{\mathbf a}
+===================
+
+\mathbf M^{-1}
+\left(
+\mathbf F^{\mathrm{cons}}
++
+\mathbf f^{\mathrm{nc}}
+\right),
+]
+
+[
+\widehat{\boldsymbol\alpha}
+===========================
+
+\mathbf J^{-1}
+\boldsymbol\tau^{\mathrm{nc}}.
+]
+
+### Paso 14: integrar
+
+[
+(\mathbf q^k,\mathbf v^k,\boldsymbol\omega^k)
+\longmapsto
+(\mathbf q^{k+1},\mathbf v^{k+1},\boldsymbol\omega^{k+1}).
+]
+
+---
+
+# 33. Shapes tensoriales principales
+
+| Objeto                                    |       Shape |
+| ----------------------------------------- | ----------: |
+| Posiciones (\mathbf Q)                    |  (N\times3) |
+| Velocidades (\mathbf V)                   |  (N\times3) |
+| Velocidades angulares (\boldsymbol\Omega) |  (N\times3) |
+| SDF (\boldsymbol\varphi)                  |  (N\times1) |
+| Normales (\boldsymbol\nu)                 |  (N\times3) |
+| Velocidad local de pared                  |  (N\times3) |
+| Aristas no dirigidas                      |  (E\times2) |
+| Embedding nodal                           | (N\times h) |
+| Embedding de arista                       | (E\times h) |
+| Coeficientes (c_{ij,n},c_{ij,\tau})       |  (E\times2) |
+| Coeficientes (c_{iW,n},c_{iW,\tau})       |  (N\times2) |
+| Aceleración predicha                      |  (N\times3) |
+| Aceleración angular predicha              |  (N\times3) |
+
+---
+
+# 34. Pérdida de entrenamiento
+
+## 34.1. Pérdida de aceleración translacional
+
+[
+\mathcal L_a
+============
+
+\frac1N
+\sum_i
+\left|
+\frac{
+\widehat{\mathbf a}_i-\mathbf a_i^{\mathrm{DEM}}
+}{
+\boldsymbol\sigma_a
+}
+\right|^2.
+]
+
+## 34.2. Pérdida de aceleración angular
+
+Si el DEM proporciona rotación:
+
+[
+\mathcal L_\alpha
+=================
+
+\frac1N
+\sum_i
+\left|
+\frac{
+\widehat{\boldsymbol\alpha}_i
+-----------------------------
+
+\boldsymbol\alpha_i^{\mathrm{DEM}}
+}{
+\boldsymbol\sigma_\alpha
+}
+\right|^2.
+]
+
+## 34.3. Pérdida de rollout
+
+Para un horizonte (H):
+
+[
+\mathcal L_{\mathrm{roll}}
+==========================
+
+\sum_{h=1}^H
+\lambda_h
+\left[
+\frac{
+|\widehat{\mathbf q}^{k+h}
+--------------------------
+
+\mathbf q^{k+h}|^2
+}{\sigma_q^2}
++
+\lambda_v
+\frac{
+|\widehat{\mathbf v}^{k+h}
+--------------------------
+
+\mathbf v^{k+h}|^2
+}{\sigma_v^2}
+\right].
+]
+
+Si existen datos rotacionales:
+
+[
++
+\lambda_\omega
+\frac{
+|\widehat{\boldsymbol\omega}^{k+h}
+----------------------------------
+
+\boldsymbol\omega^{k+h}|^2
+}{\sigma_\omega^2}.
+]
+
+## 34.4. Pérdida de disipación energética
+
+La disipación instantánea predicha puede estimarse desde la potencia relativa:
+
+[
+P_{\mathrm{diss},\theta}
+========================
+
+*
+
+\sum_{{i,j}}
+\left[
+(\mathbf v_{i,ij}^c)^\top
+\mathbf f_{i\leftarrow j}^R
++
+(\mathbf v_{j,ij}^c)^\top
+\mathbf f_{j\leftarrow i}^R
+\right]
+-------
+
+\sum_i
+\mathbf w_{iW}^\top
+\mathbf f_{iW}^R.
+]
+
+Se puede supervisar:
+
+[
+\mathcal L_{\mathrm{diss}}
+==========================
+
+\left|
+\widehat{\Delta E}_{\mathrm{diss}}
+----------------------------------
+
+\Delta E_{\mathrm{diss}}^{\mathrm{DEM}}
+\right|^2.
+]
+
+La supervisión explícita de energía disipada es especialmente pertinente en molienda; el modelo de Garrido-Nuñez incorpora precisamente una salida global de disipación y muestra que su supervisión es necesaria para calibrar correctamente su escala.
+
+## 34.5. Regularización residual
+
+[
+\mathcal L_{\mathrm{res}}
+=========================
+
+\frac1N
+\sum_i
+|\mathbf f_i^H|^2
++
+\frac1N
+\sum_i
+|\boldsymbol\tau_i^H|^2.
+]
+
+Esto fuerza al modelo a explicar primero la dinámica mediante energía y Rayleigh.
+
+## 34.6. Pasividad relativa del residual
+
+Para interacciones internas:
+
+[
+\mathcal L_{\mathrm{pass,pp}}
+=============================
+
+\sum_{{i,j}}
+\operatorname{ReLU}
+\left(
+P_{ij}^{H}
+\right)^2,
+]
+
+donde (P_{ij}^{H}) es la potencia neta del residual del par.
+
+Para pared:
+
+[
+\mathcal L_{\mathrm{pass,pW}}
+=============================
+
+\sum_i
+\operatorname{ReLU}
+\left(
+\mathbf w_{iW}^\top
+\mathbf f_{iW}^{H}
+\right)^2.
+]
+
+Esto permite que la pared entregue energía mediante (\mathbf v_W), pero evita que el residual genere energía desde el movimiento relativo sin justificación.
+
+## 34.7. Penalización de penetración
+
+Durante rollout:
+
+[
+\mathcal L_{\mathrm{pen}}
+=========================
+
+\sum_{k,i}
+\left[
+\operatorname{sp}_\beta
+\left(
+R_i-\varphi_i^k
+\right)
+\right]^2.
+]
+
+No sustituye la fuerza de pared; solo actúa como regularización de estabilidad.
+
+## 34.8. Pérdida total
+
+[
+\boxed{
+\mathcal L
+==========
+
+\lambda_a\mathcal L_a
++
+\lambda_\alpha\mathcal L_\alpha
++
+\lambda_{\mathrm{roll}}\mathcal L_{\mathrm{roll}}
++
+\lambda_{\mathrm{diss}}\mathcal L_{\mathrm{diss}}
++
+\lambda_{\mathrm{res}}\mathcal L_{\mathrm{res}}
++
+\lambda_{\mathrm{pass}}\mathcal L_{\mathrm{pass}}
++
+\lambda_{\mathrm{pen}}\mathcal L_{\mathrm{pen}}.
+}
+]
+
+---
+
+# 35. Estrategia de entrenamiento
+
+La secuencia recomendada es:
+
+### Etapa I: rama conservativa
+
+Entrenar:
+
+[
+V_{\mathrm{pp},\theta},
+\qquad
+V_{\mathrm{pW},\theta}
+]
+
+junto con gravedad conocida, usando aceleraciones y estados con baja disipación cuando estén disponibles.
+
+### Etapa II: Rayleigh
+
+Activar:
+
+[
+\mathcal R_{\mathrm{pp},\theta},
+\qquad
+\mathcal R_{\mathrm{pW},\theta}.
+]
+
+Mantener:
+
+[
+\mathbf f^H=0.
+]
+
+### Etapa III: rollout corto
+
+Entrenar con ventanas de 2–5 pasos, introduciendo ruido coherente en posiciones y velocidades.
+
+### Etapa IV: rama histórica
+
+Activar gradualmente:
+
+[
+\mathbf f^H,
+\qquad
+\boldsymbol\tau^H,
+]
+
+con penalización fuerte.
+
+### Etapa V: rollout largo
+
+Incrementar progresivamente el horizonte y ajustar:
+
+* estabilidad;
+* disipación acumulada;
+* penetración;
+* distribución espacial;
+* energía transferida por la pared.
+
+---
+
+# 36. Normalización dimensional
+
+Como las fuerzas se obtienen derivando energías, no debe normalizarse cada cantidad sin mantener coherencia dimensional.
+
+La opción recomendada es una formulación adimensional.
+
+Se escogen escalas:
+
+[
+L_0,
+\qquad
+M_0,
+\qquad
+T_0.
+]
+
+Entonces:
+
+[
+\widetilde{\mathbf q}
+=====================
+
+\frac{\mathbf q}{L_0},
+]
+
+[
+\widetilde{\mathbf v}
+=====================
+
+\frac{T_0}{L_0}\mathbf v,
+]
+
+[
+\widetilde{\mathbf a}
+=====================
+
+\frac{T_0^2}{L_0}\mathbf a.
+]
+
+La escala de energía es:
+
+[
+E_0
+===
+
+\frac{M_0L_0^2}{T_0^2}.
+]
+
+La escala de la función de Rayleigh es potencia:
+
+[
+\mathcal R_0
+============
+
+# \frac{E_0}{T_0}
+
+\frac{M_0L_0^2}{T_0^3}.
+]
+
+Esto garantiza que:
+
+[
+-\frac{\partial\mathcal R}
+{\partial\mathbf v}
+]
+
+tenga unidades de fuerza.
+
+---
+
+# 37. Garantías por construcción
+
+SLGNN-v2 garantiza, dentro de un paso con lista de vecinos fija:
+
+## Permutación
+
+El resultado no depende de la numeración de las partículas.
+
+## Equivarianza (SO(3))
+
+Las aceleraciones y fuerzas rotan con el sistema.
+
+## Invariancia traslacional interna
+
+Las interacciones partícula–partícula dependen de posiciones relativas.
+
+## Acción–reacción
+
+[
+\mathbf f_{j\leftarrow i}
+=========================
+
+-\mathbf f_{i\leftarrow j}.
+]
+
+## Conservación de momento lineal interno
+
+[
+\sum_i
+\mathbf f_{i,\mathrm{pp}}=0.
+]
+
+## Conservación de momento angular interno
+
+Incluyendo spin y torques:
+
+[
+\frac{d}{dt}
+\left[
+\sum_i
+\mathbf q_i\times m_i\mathbf v_i
++
+\sum_i
+I_i\boldsymbol\omega_i
+\right]
+=0
+]
+
+para interacciones internas aisladas.
+
+## Disipación de Rayleigh
+
+La potencia relativa del canal Rayleigh es no positiva.
+
+## Fuerza conservativa de pared normal
+
+La dirección normal emerge del gradiente de la SDF.
+
+## Suavidad de entrada y salida del grafo
+
+Mensajes y fuerzas se anulan suavemente antes de que una arista desaparezca.
+
+---
+
+# 38. Qué no garantiza la arquitectura
+
+SLGNN-v2 no garantiza automáticamente:
+
+* ausencia total de error acumulado en rollout;
+* no penetración exacta;
+* reproducción exacta de una ley DEM particular;
+* generalización a regímenes fuera del rango de energía de entrenamiento;
+* conservación de energía, porque existen disipación y trabajo de pared;
+* dinámica correcta de partículas no esféricas;
+* identificación única de todas las contribuciones físicas.
+
+Estas propiedades deben evaluarse experimentalmente.
+
+---
+
+# 39. Versión mínima implementable
+
+Para evitar que la primera implementación sea excesivamente compleja, propongo comenzar con:
+
+[
+\boxed{
+\text{SLGNN-v2-T}
+}
+]
+
+con las siguientes simplificaciones:
+
+* solo traslación;
+* (\boldsymbol\omega_i=0);
+* masa conocida;
+* energía gravitacional conocida;
+* potencial partícula–partícula aprendido;
+* potencial partícula–pared aprendido;
+* velocidad local de pared explícita;
+* Rayleigh normal y tangencial;
+* processor escalar invariante;
+* función de corte (C^2);
+* sin residual durante la primera etapa;
+* Euler semiimplícito;
+* pérdida de aceleración más rollout.
+
+Después se añade:
+
+[
+\boxed{
+\text{SLGNN-v2-R}
+}
+]
+
+con:
+
+* velocidad angular;
+* torques;
+* velocidad de punto de contacto;
+* conservación de momento angular;
+* memoria tangencial;
+* residual histórico.
+
+Para molienda de bolas, SLGNN-v2-R es la formulación física adecuada. SLGNN-v2-T sirve como baseline y prueba de arquitectura.
+
+---
+
+# 40. Fórmula compacta definitiva
+
+La arquitectura completa puede resumirse como:
+
+[
+\boxed{
+V_\theta
+========
+
+-\sum_i m_i\mathbf g^\top\mathbf q_i
++
+\sum_{{i,j}}
+\chi_{ij}
+U_{ij,\theta}^{\mathrm{pp}}
++
+\sum_i
+\chi_{iW}
+U_{iW,\theta}^{\mathrm{pW}}
+}
+]
+
+[
+\boxed{
+\mathcal R_\theta
+=================
+
+\frac12
+\sum_{{i,j}}
+\chi_{ij}
+\left[
+c_{ij,n}\rho_-(u_{ij,n})^2
++
+c_{ij,\tau}
+|\mathbf u_{ij,\tau}|^2
+\right]
++
+\frac12
+\sum_i
+\chi_{iW}
+\left[
+c_{iW,n}\rho_-(w_{iW,n})^2
++
+c_{iW,\tau}
+|\mathbf w_{iW,\tau}|^2
+\right]
+}
+]
+
+[
+\boxed{
+\mathbf M\widehat{\mathbf a}
+============================
+
+-\nabla_{\mathbf q}V_\theta
+-\nabla_{\mathbf v}\mathcal R_\theta
++
+\mathbf f_\theta^H
+}
+]
+
+[
+\boxed{
+\mathbf J\widehat{\boldsymbol\alpha}
+====================================
+
+-\nabla_{\boldsymbol\omega}\mathcal R_\theta
++
+\boldsymbol\tau_\theta^H
+}
+]
+
+con
+
+[
+\boxed{
+\mathbf v_{W,i}
+===============
+
+\mathbf V_W
++
+\boldsymbol\Omega_W
+\times
+(\mathbf x_{W,i}-\mathbf c_W)
+}
+]
+
+y
+
+[
+\boxed{
+\mathbf w_{iW}
+==============
+
+\mathbf v_i
++
+\boldsymbol\omega_i
+\times(-R_i\boldsymbol\nu_i)
+----------------------------
+
+\mathbf v_{W,i}.
+}
+]
+
+Esta es la modificación central de la versión 2: la SDF representa la **geometría**, mientras que (\mathbf v_W) representa explícitamente la **cinemática de la pared**. La red aprende energías y coeficientes escalares, y las fuerzas vectoriales emergen de gradientes o de bases geométricas equivariantes.

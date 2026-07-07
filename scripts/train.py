@@ -27,76 +27,19 @@ Uso:
 import argparse
 import json
 import time
-from dataclasses import asdict
 from pathlib import Path
 
 import torch
 import yaml
 
-from slgnn import (BoxSDF, Particles, SLGNN, SLGNNConfig, default_scales,
-                   finite_difference_accelerations, load_case)
+from slgnn.experiment import (asdict_config, build_model, compute_sigmas,
+                              load_split)
 from slgnn.integrator import semi_implicit_step
 from slgnn.losses import (acceleration_loss, angular_acceleration_loss,
                           passivity_loss, penetration_loss,
                           residual_regularization)
 
 ROOT = Path(__file__).resolve().parent.parent
-_AXIS = {"x": 0, "y": 1, "z": 2}
-
-
-# --------------------------------------------------------------------------- #
-# Datos
-# --------------------------------------------------------------------------- #
-def load_split(cfg):
-    """Carga y adimensionaliza train/val, y arma la pared y el vector gravedad."""
-    scales = default_scales()
-    base = ROOT / "data" / "extracted" / cfg["data"]["dataset"]
-    dt = float(cfg["data"]["dt"])
-
-    def _load(case):
-        return scales.nondim(load_case(base / case, dt=dt))
-
-    train = [_load(c) for c in cfg["data"]["train_cases"]]
-    val = _load(cfg["data"]["val_case"])
-
-    # pared: caja en unidades adimensionales (0.03 m / 0.005 m = 6 diámetros)
-    box_min = [scales.length(x) for x in cfg["data"]["box_min"]]
-    box_max = [scales.length(x) for x in cfg["data"]["box_max"]]
-    wall = BoxSDF(box_min, box_max)
-
-    # gravedad en el eje verificado en los datos (sedimentación en −y)
-    g_mag = scales.gravity(float(cfg["data"]["gravity"]))
-    g_vec = torch.zeros(3, dtype=train[0].q.dtype)
-    g_vec[_AXIS[cfg["data"]["gravity_axis"]]] = -g_mag
-
-    particles = Particles.uniform(
-        train[0].q.shape[1],
-        m=train[0].m[0].item(),
-        radius=train[0].radii[0].item(),
-        dtype=train[0].q.dtype,
-    )
-    return scales, train, val, wall, g_vec, particles
-
-
-def compute_sigmas(train, dt):
-    """Escalas de normalización de las pérdidas, derivadas de los datos (§34, §36).
-
-    sigma_a / sigma_alpha desde las aceleraciones por diferencias finitas;
-    sigma_v / sigma_w desde velocidades y velocidades angulares; sigma_q en
-    una escala natural de un diámetro.
-    """
-    a = torch.cat([finite_difference_accelerations(tr.v, tr.dt).reshape(-1) for tr in train])
-    al = torch.cat([finite_difference_accelerations(tr.omega, tr.dt).reshape(-1) for tr in train])
-    v = torch.cat([tr.v.reshape(-1) for tr in train])
-    w = torch.cat([tr.omega.reshape(-1) for tr in train])
-    eps = 1e-6
-    return {
-        "sigma_a": float(a.std()) + eps,
-        "sigma_alpha": float(al.std()) + eps,
-        "sigma_q": 1.0,
-        "sigma_v": float(v.std()) + eps,
-        "sigma_w": float(w.std()) + eps,
-    }
 
 
 # --------------------------------------------------------------------------- #
@@ -182,15 +125,6 @@ def validate(model, tr, horizon, particles, wall, g_vec, dt, sig):
 # --------------------------------------------------------------------------- #
 # Bucle principal
 # --------------------------------------------------------------------------- #
-def build_model(cfg):
-    # float32: el doble backward funciona igual y es ~2x más rápido/liviano que
-    # float64 en CPU, lo importante para rollouts largos. Las garantías físicas
-    # que exigen float64 se verifican aparte en los tests.
-    fields = SLGNNConfig().__dict__
-    overrides = {k: v for k, v in (cfg.get("model") or {}).items() if k in fields}
-    return SLGNN(SLGNNConfig(**overrides))
-
-
 def save_checkpoint(path, model, opt, cfg, sig, tag):
     path.mkdir(parents=True, exist_ok=True)
     torch.save(
@@ -206,10 +140,6 @@ def save_checkpoint(path, model, opt, cfg, sig, tag):
     )
 
 
-def asdict_config(c: SLGNNConfig):
-    return dict(c.__dict__)
-
-
 def set_lr(opt, lr):
     for g in opt.param_groups:
         g["lr"] = lr
@@ -217,7 +147,7 @@ def set_lr(opt, lr):
 
 def train(cfg, smoke=False):
     torch.manual_seed(cfg["seed"])
-    scales, train_set, val, wall, g_vec, particles = load_split(cfg)
+    scales, train_set, val, wall, g_vec, particles = load_split(cfg, ROOT)
     dt = train_set[0].dt
     sig = compute_sigmas(train_set, dt)
     n = particles.radii.shape[0]

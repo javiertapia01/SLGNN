@@ -15,3 +15,4 @@ data/extracted/*
 *.egg-info/
 build/
 checkpoints/
+results/

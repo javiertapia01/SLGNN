@@ -7,12 +7,12 @@ from .integrator import rollout, semi_implicit_step
 from .model import SLGNN
 from .sdf import BoxSDF, RotatingCylinderSDF, dynamical_cylinder_omega
 from .state import Particles, SLGNNOutput
-from . import losses
+from . import losses, experiment
 
 __all__ = [
     "SLGNN", "SLGNNConfig", "Particles", "SLGNNOutput",
     "BoxSDF", "RotatingCylinderSDF", "dynamical_cylinder_omega",
     "rollout", "semi_implicit_step",
     "Trajectory", "load_case", "finite_difference_accelerations",
-    "Scales", "default_scales", "losses",
+    "Scales", "default_scales", "losses", "experiment",
 ]

@@ -1,0 +1,95 @@
+# Banco de pruebas del esqueleto del gemelo digital SAG.
+# Todo parámetro del gemelo vive aquí (§5). Ver src/twin/README.md para lo que
+# este artefacto NO sostiene.
+
+seed: 0
+
+data:
+  root: data/extracted
+  # fuente de la biblioteca de regímenes: la rampa de omega del cilindro
+  cylinder_case: Extrapolation_2073Spheres_Gravity_Inside_Rotating_Cylinder/CASE08
+  cylinder_dt: 1.0e-3
+  # caso de caja estática, usado solo para calibrar la disipación (§calibrate)
+  calibration_case: 60Spheres_Gravity_Inside_Cuboidal_Enclosure/CASE01
+  calibration_dt: 1.0e-4
+  calibration_box_m: 0.03
+  gravity: 9.81
+  gravity_axis: y          # verificado en ambos datasets: la carga sedimenta en −y
+  # "pdf_literal" está verificado contra los datos (ver twin/cylinder.py);
+  # "triangular" es la lectura que implementa slgnn.sdf y que los datos refutan.
+  omega_profile: pdf_literal
+
+coarse:
+  delta: 0.0               # banda de detección sobre el gap (adimensional)
+  max_lookback: 32         # retroceso máximo al onset de contacto
+  v_n_min: 0.0
+  block: 256
+  n_bins: 30
+  e_min: 1.0e-12           # J
+  e_max: 1.0e-2            # J
+  restitution_pp: 0.95     # DATA_NOTES.md §4-5
+  restitution_pw: 0.90
+  closure_stride: 20
+  # kappa_diss se calibra en tiempo de ejecución sobre la caja estática, donde
+  # p_in ≡ 0. Dejar en null para calibrar; fijar un número para reproducir.
+  kappa_diss: null
+
+# Segmentación de la rampa en ventanas cuasi-estacionarias. El barrido de anchos
+# separa el retardo físico de la carga de la no estacionariedad del muestreo (§3).
+hysteresis:
+  window_widths_s: [0.05, 0.10, 0.20]
+  reference_width_s: 0.10
+  n_probes: 12
+  # umbral de decisión: por encima de esto, omega ↦ E^coll NO es una función
+  wasserstein_threshold: 0.15   # décadas
+  rate_threshold: 0.30          # error relativo de la tasa total
+
+pbm:
+  n_classes: 6
+  d_max: 0.005
+  ratio: 2.0
+  density: 4000.0
+  e_star_ref: 2.0e-6       # J — PLAUSIBLE, NO CALIBRADO
+  d_ref: 0.005
+  nu: 1.0
+  alpha: 2.0
+  beta: 0.8                # progenie Gaudin–Schuhmann
+  k_discharge: 0.5
+  d50: 1.0e-3
+  classifier_width: 0.15
+  d_target: 1.0e-3
+  feed_fractions: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+control:
+  horizon: 10
+  dt: 0.5
+  lambda_q: 1.0
+  # Escalado para que los dos términos del costo sean comparables sobre estos
+  # datos: producción ≈ 0.08 kg/s y energía específica ≈ 0.5 J/kg, así que
+  # lambda_e ~ 0.15 pone ambos en el mismo orden. Con lambda_e mucho menor el
+  # MPC solo maximiza producción y satura en omega_max, y los cuatro arcos de
+  # E1 coinciden por degeneración del problema, no por falta de información.
+  lambda_e: 0.15
+  lambda_du: 1.0e-2
+  feed_min: 0.0
+  feed_max: 0.05
+  d_omega_max: 3.0
+  p_max: .inf
+  h_max: 5.0
+  omega_nominal: 6.0
+  iters: 60
+  lr: 0.15
+  # El andamio PSD → espectro está APAGADO por defecto: no es verificable con
+  # este dataset (§7.5). Encenderlo marca el resultado como andamio.
+  psd_feedback: false
+  psd_exponent: -0.5
+
+confidence:
+  ood_threshold: 0.02
+  sigma_threshold: 0.15    # décadas de Wasserstein entre ramas
+  shrink: 0.25
+
+experiment:
+  initial_holdup_kg: 1.0
+  n_closed_loop_steps: 40
+  out_dir: results/twin

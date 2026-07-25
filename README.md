@@ -15,6 +15,7 @@ data/
   raw/         # descargas sin procesar (no versionado)
   extracted/   # datos descomprimidos (no versionado)
   DATA_NOTES.md
+src/twin/      # banco de pruebas del esqueleto del gemelo digital (ver su README)
 src/slgnn/     # paquete principal
   config.py      # hiperparámetros (unidades adimensionales)
   cutoff.py      # ventana quintic C², compresión softplus, parte negativa suave
@@ -110,6 +111,46 @@ El dataset comprende 6 archivos principales:
    - Parámetros físicos (diámetro, densidad, coeficientes de contacto)
    - Resolución temporal y unidades
    - Estructura de directorios
+
+## Banco de pruebas del esqueleto del gemelo digital (`src/twin/`)
+
+Prototipo del esqueleto de la propuesta de gemelo digital SAG, construido sobre
+la arquitectura SLGNN. **No es un gemelo digital**: no hay conexión con planta,
+la carga es monodispersa y el sistema es un tambor de laboratorio. Ver
+[src/twin/README.md](src/twin/README.md) para la lista completa de lo que este
+artefacto no sostiene.
+
+```
+trayectorias (MFiX o rollout SLGNN) ──► C_φ ──► espectro E^coll(ω)
+                                                     │
+                              biblioteca de regímenes ┤
+                                                     ▼
+                        PBM energético (6 clases) ──► MPC restringido
+```
+
+El contrato central es que `C_φ` **no sabe de dónde vienen las trayectorias**:
+la fuente es intercambiable sin tocar el operador.
+
+```
+python experiments/exp_H_hysteresis.py              # ¿ω ↦ E^coll es una función?
+python experiments/exp_E1_value_of_information.py   # ¿el espectro cambia decisiones?
+python experiments/exp_E2_spectrum_estimators.py    # necesita checkpoint de SLGNN
+```
+
+Parámetros en `configs/twin_toy.yaml`. Resultados en `results/twin/`.
+
+Tres resultados sobre datos reales, con sus cifras en el README del paquete:
+
+- **ω(t) del cilindro:** los datos **refutan** el perfil que implementa
+  `slgnn.sdf.dynamical_cylinder_omega`. El tambor invierte el sentido de giro
+  entre t = 1.0 y 1.5 s. Ver `data/DATA_NOTES.md` §5.
+- **Experimento H:** `ω ↦ E^coll` **depende del camino**, y la dependencia se
+  concentra a ω baja (hasta 2.4 décadas de Wasserstein entre ramas), donde la
+  rama ascendente arrastra el transitorio de arranque. A ω alta las ramas
+  coinciden.
+- **Disipación:** `(1−e²)·E_impacto` recupera solo ~1/3 de la pérdida real de
+  energía mecánica, de forma sistemática. Se calibra contra la caja estática,
+  donde el balance es exacto.
 
 ## Plan de hitos
 

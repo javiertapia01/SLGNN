@@ -68,10 +68,48 @@ en `Informe_Estrategia_Entrenamiento_SLGNN.md`.
 
 ## Dataset
 
-*6 DoF Dynamics: DEM Simulation Dataset for Learning GNN Surrogate Model*
+**6 DoF Dynamics: DEM Simulation Dataset for Learning GNN Surrogate Model**
 (Sharma & Fink, EPFL). Zenodo DOI
-[10.5281/zenodo.17589419](https://doi.org/10.5281/zenodo.17589419),
-CC-BY-4.0. Ver `data/DATA_NOTES.md` para el esquema una vez descargado.
+[10.5281/zenodo.17589419](https://doi.org/10.5281/zenodo.17589419), CC-BY-4.0.
+
+### Descripción
+
+Dataset de simulaciones DEM (Discrete Element Method) generadas con **MFiX**, que contiene
+trayectorias de múltiples partículas esféricas en diversos escenarios de dinámica.
+Incluye 6 grados de libertad (posición + orientación) con velocidades lineales y
+angulares.
+
+### Contenido
+
+El dataset comprende 6 archivos principales:
+
+1. **Benchmark 2 Spheres** — colisión oblicua sin gravedad (test de conservación de momento)
+   - 3 subcasos con escalas distintas (`1x`, `2x`, `4x`)
+   - ~100 timesteps por subcaso
+
+2. **Benchmark 1 Sphere** — colisión con pared plana a distintos ángulos
+   - 5 ángulos de impacto: 10°, 30°, 45°, 60°, 90°
+   - ~200 timesteps por ángulo
+
+3. **60 Spheres Homogeneous** — 60 esferas sin gravedad en caja rígida
+   - 9 casos: CASE01-07 (entrenamiento/validación/extrapolación), CASE08-09 (adicionales)
+   - 1501 timesteps cada uno
+
+4. **60 Spheres Gravity** — 60 esferas con gravedad en caja rígida
+   - Parámetros de contacto distintos para partícula–partícula vs partícula–pared
+   - 7 casos (CASE01-07): entrenamiento, validación y extrapolación
+   - 1501 timesteps cada uno
+
+5. **Extrapolation 2073 Spheres** — cilindro rotatorio con pared móvil
+   - Escenario de frontera dinámica (solo para inferencia)
+   - 2073 esferas, 2001 timesteps
+   - Pared rotatoria con cinemática time-dependent (rampa aceleración → desaceleración)
+
+6. **Detalles técnicos** — ver `data/DATA_NOTES.md` para:
+   - Esquema CSV (3 variantes de cabecera)
+   - Parámetros físicos (diámetro, densidad, coeficientes de contacto)
+   - Resolución temporal y unidades
+   - Estructura de directorios
 
 ## Plan de hitos
 

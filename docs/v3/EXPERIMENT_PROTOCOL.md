@@ -23,6 +23,25 @@ Implementadas en código, no confiadas al operador:
 | Presupuesto de parámetros comparable | reportado en cada manifiesto y en el informe |
 | Tiempos de entrenamiento e inferencia | `train_seconds`, `seconds_per_step` |
 
+### La pérdida de entrenamiento es de un paso, para las tres variantes
+
+`λ_Δp = 1`, `λ_ΔL = 0`, y **ningún término de rollout**. Importa decirlo
+explícitamente porque la formulación oficial sí contempla `L_roll` en la
+pérdida total (§13.7): si ese término se activara solo para v3, su ventaja en
+rollout largo dejaría de ser atribuible al sesgo inductivo —estaría
+entrenando contra la métrica con la que se lo evalúa— y la comparación no
+mediría nada.
+
+`rollout_horizons` en los YAML de experimento es una clave de **evaluación**,
+vive en la raíz y nunca entra en `TrainConfig`. `TrainConfig.lambda_rollout` y
+`rollout_horizon` existen reservados para una fase futura y valen cero; el
+runner no llama a `rollout_loss`.
+
+`tests/comparison/test_shared_objective.py` lo ancla: falla si aparece un
+término de rollout en la pérdida, si alguna configuración lo mete en el bloque
+`train:`, si los modelos dejan de compartir el mismo update semiimplícito de
+posición, o si dejan de recibir la gravedad analítica por igual.
+
 ### Selección de hiperparámetros
 
 Una única rejilla de `lr` `{3e-3, 1e-3, 3e-4, 1e-4}`, la misma para las tres

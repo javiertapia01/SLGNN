@@ -1,0 +1,67 @@
+# Perfil impulsivo normal `v3-I`.
+#
+# Canales activos: I (restitución y compliance) mas el solver normal acoplado.
+# V y Psi quedan sin peso: en v3-I ningún contacto es COMPLIANT, de modo que la
+# respuesta normal no puede contarse dos veces.
+#
+# La auditoría temporal respalda este perfil para el cilindro rotatorio
+# (dt de grabación 1e-3 s, 77 % de los episodios de un solo snapshot), no para
+# los datasets de caja. Se entrena igualmente sobre caja para poder comparar
+# los dos perfiles bajo el mismo protocolo, que es lo que decide la fase.
+
+model:
+  eps: 1.0e-12
+  memory_enabled: false
+  closure_enabled: false
+
+  graph:
+    pp_gap_on: 0.02
+    pp_gap_off: 0.35
+    pw_gap_on: 0.02
+    pw_gap_off: 0.35
+    skin: 0.15
+    ccd: true
+    ccd_margin: 0.0
+
+  encoder:
+    hidden: 48
+    n_material_types: 4
+    material_dim: 8
+    n_message_steps: 2
+    activation: silu
+
+  potential:
+    hidden: 48
+    f0: 1.0
+    exponent: 1.0
+    quad_nodes: 8
+    eps_unilateral: 0.02
+
+  dissipation:
+    hidden: 48
+    d0: 1.0
+    tangential: false
+    rotational: false
+
+  impact:
+    hidden: 48
+    e_max: 1.0
+    kappa0: 1.0e-3
+    friction: false
+
+  solver:
+    max_iters: 30
+    eval_max_iters: 200
+    tol: 1.0e-9
+    beta: 0.2
+    kappa_floor: 1.0e-9
+    power_iters: 12
+
+  router:
+    profile: v3-I
+    g_tol: 0.0
+    g_ccd: 0.0
+    g_on: 0.0
+    g_off: 0.05
+    n_grace: 1
+    impulsive_protection: false

@@ -1,0 +1,43 @@
+# Nivel 4: 60 esferas con gravedad, experimento pequeño.
+#
+# CASE01-05 entrenamiento, CASE06 validación, CASE07 test/extrapolación.
+# CASE07 **nunca** entra en `train_cases` ni en `val_case`: `splits.py` lo
+# impide con un error, no con un comentario.
+#
+# Primera corrida deliberadamente pequeña: subconjunto estratificado, batch
+# compatible con CPU, horizontes 1/5/10/25 y tres semillas. No se empieza con
+# rollout de 100 pasos ni con el dataset completo (§16.6).
+
+name: gravity60_small
+
+data:
+  dataset: sixty_gravity
+  train_cases: ["CASE01", "CASE02", "CASE03", "CASE04", "CASE05"]
+  val_case: "CASE06"
+  test_cases: ["CASE07"]
+  # Ventana con contactos según la auditoría; los primeros ~190 snapshots son
+  # caída libre y solo diluirían el muestreo.
+  frame_start: 150
+  frame_stop: 650
+
+sampler:
+  quotas:
+    free: 0.15
+    pp: 0.20
+    pw: 0.20
+    mixed: 0.20
+    contact_birth: 0.20
+    high_compression: 0.05
+
+train:
+  updates: 400
+  batch_size: 2
+  lr: 1.0e-3
+  grad_clip: 1.0
+  eval_every: 100
+  log_every: 50
+  lambda_delta_p: 1.0
+  lambda_delta_L: 0.0
+
+rollout_horizons: [1, 5, 10, 25]
+seeds: [0, 1, 2]

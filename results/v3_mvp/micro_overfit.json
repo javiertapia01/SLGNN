@@ -1,0 +1,181 @@
+{
+  "experiment": "micro_overfit",
+  "seed": 0,
+  "variants": {
+    "v3_c": {
+      "profile": "v3-C",
+      "selected_lr": 0.0001,
+      "lr_grid": {
+        "lr=0.003": 0.00010160250860845537,
+        "lr=0.001": 9.506450146350737e-05,
+        "lr=0.0003": 8.479083471143373e-05,
+        "lr=0.0001": 7.794242072770828e-05
+      },
+      "n_parameters": 176877,
+      "loss_first": 5.096472112206296e-05,
+      "loss_last": 4.519501784122974e-05,
+      "reduction_fraction": 0.11320974889697721,
+      "best_val_loss": 7.794242072770828e-05,
+      "grad_before": {
+        "V": 3.832114801360517e-06,
+        "Psi": 0.00010087382526319769,
+        "I": 0.0,
+        "encoder": 5.730031553508083e-06
+      },
+      "grad_after": {
+        "V": 4.313194573662376e-06,
+        "Psi": 0.0003344129454068832,
+        "I": 0.0,
+        "encoder": 4.711643178306363e-05
+      },
+      "router_before": {
+        "n_free": 604,
+        "n_compliant": 1950,
+        "n_impulsive": 0,
+        "contact_birth": 117,
+        "contact_age_mean": 0.0,
+        "profile": "v3-C"
+      },
+      "router_after": {
+        "n_free": 604,
+        "n_compliant": 1950,
+        "n_impulsive": 0,
+        "contact_birth": 117,
+        "contact_age_mean": 0.0,
+        "profile": "v3-C"
+      },
+      "e_before": null,
+      "e_after": null,
+      "kappa_before": null,
+      "kappa_after": null,
+      "n_impulsive": 0,
+      "train_seconds": 44.80228199996054,
+      "reachability": {
+        "reachable_fraction": 0.9543442126721599,
+        "unreachable_fraction": 0.04565578732784027,
+        "n_batches": 7
+      },
+      "wiring_checks": {
+        "loss_decreases": true,
+        "loss_drops_over_90pct": false,
+        "encoder_receives_gradient": true,
+        "V_receives_gradient": true,
+        "Psi_receives_gradient": true,
+        "I_silent_as_expected": true
+      }
+    },
+    "v3_i": {
+      "profile": "v3-I",
+      "selected_lr": 0.003,
+      "lr_grid": {
+        "lr=0.003": 0.00011230647729022162,
+        "lr=0.001": 0.00012210138912287628,
+        "lr=0.0003": 0.00016059129383807683,
+        "lr=0.0001": 0.0002917379624586858
+      },
+      "n_parameters": 176877,
+      "loss_first": 7.531670548329992e-05,
+      "loss_last": 4.902135484230433e-05,
+      "reduction_fraction": 0.34913038843455646,
+      "best_val_loss": 0.00011230647729022162,
+      "grad_before": {
+        "V": 0.0,
+        "Psi": 0.0,
+        "I": 6.184367510370999e-05,
+        "encoder": 1.3710473280198378e-06
+      },
+      "grad_after": {
+        "V": 0.0,
+        "Psi": 0.0,
+        "I": 0.0008711883731368598,
+        "encoder": 0.0001654208029567464
+      },
+      "router_before": {
+        "n_free": 2413,
+        "n_compliant": 0,
+        "n_impulsive": 141,
+        "contact_birth": 117,
+        "contact_age_mean": 0.0,
+        "profile": "v3-I"
+      },
+      "router_after": {
+        "n_free": 2413,
+        "n_compliant": 0,
+        "n_impulsive": 141,
+        "contact_birth": 117,
+        "contact_age_mean": 0.0,
+        "profile": "v3-I"
+      },
+      "e_before": 0.5000056687899139,
+      "e_after": 1.6201592198440108e-85,
+      "kappa_before": 0.0006931388852855846,
+      "kappa_after": 0.18715622009369232,
+      "n_impulsive": 141,
+      "train_seconds": 63.83871509996243,
+      "reachability": {
+        "reachable_fraction": 0.9543442126721599,
+        "unreachable_fraction": 0.04565578732784027,
+        "n_batches": 7
+      },
+      "wiring_checks": {
+        "loss_decreases": true,
+        "loss_drops_over_90pct": false,
+        "encoder_receives_gradient": true,
+        "I_receives_gradient": true,
+        "V_silent_as_expected": true,
+        "Psi_silent_as_expected": true,
+        "e_moved_from_init": true,
+        "kappa_moved_from_init": true
+      }
+    },
+    "gns_controlled": {
+      "profile": "gns-controlled",
+      "selected_lr": 0.003,
+      "lr_grid": {
+        "lr=0.003": 0.00014037983468593373,
+        "lr=0.001": 0.0001453626273171359,
+        "lr=0.0003": 0.00018391695644526956,
+        "lr=0.0001": 0.00023434543185177565
+      },
+      "n_parameters": 171542,
+      "loss_first": 0.0004362359760875016,
+      "loss_last": 8.666975096368853e-05,
+      "reduction_fraction": 0.8013236970022297,
+      "best_val_loss": 0.00014037983468593373,
+      "grad_before": {
+        "V": 0.0,
+        "Psi": 0.0,
+        "I": 0.0,
+        "encoder": 1.1888784468038534
+      },
+      "grad_after": {
+        "V": 0.0,
+        "Psi": 0.0,
+        "I": 0.0,
+        "encoder": 0.011491158136543476
+      },
+      "router_before": {
+        "available": "disabled"
+      },
+      "router_after": {
+        "available": "disabled"
+      },
+      "e_before": null,
+      "e_after": null,
+      "kappa_before": null,
+      "kappa_after": null,
+      "n_impulsive": 0,
+      "train_seconds": 18.07589450001251,
+      "reachability": {
+        "reachable_fraction": 0.9543442126721599,
+        "unreachable_fraction": 0.04565578732784027,
+        "n_batches": 7
+      },
+      "wiring_checks": {
+        "loss_decreases": true,
+        "loss_drops_over_90pct": false,
+        "encoder_receives_gradient": true
+      }
+    }
+  }
+}

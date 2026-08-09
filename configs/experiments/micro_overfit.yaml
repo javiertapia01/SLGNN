@@ -1,0 +1,45 @@
+# Nivel 1: micro-overfit sobre un conjunto pequeño, fijo y versionado.
+#
+# Objetivo: comprobar el cableado, no la generalización. Criterios de §16.3:
+# la pérdida primaria cae de forma marcada, los gradientes llegan a V, Psi e I
+# cuando corresponde, `e` y `kappa` se mueven desde su inicialización, y
+# ninguna cabeza recibe gradiente en el régimen donde está desactivada.
+#
+# Un residual que no baja no es necesariamente un fallo de cableado: puede ser
+# una restricción física impidiendo ajustar un target incompatible. En ese caso
+# se reporta el residual y se explica qué restricción lo causa.
+
+name: micro_overfit
+
+data:
+  dataset: sixty_gravity
+  train_cases: ["CASE01"]
+  val_case: "CASE02"
+  # Ventana elegida CON la auditoría, no a ojo: en CASE01 el primer contacto
+  # aparece cerca del snapshot 190 (docs/v3/DATA_AUDIT.md §7). Un prefijo
+  # [0, 120) no contiene ni un contacto y el micro-overfit solo aprendería
+  # caída libre.
+  frame_start: 185
+  frame_stop: 265
+
+sampler:
+  quotas:
+    free: 0.10
+    pp: 0.20
+    pw: 0.25
+    mixed: 0.20
+    contact_birth: 0.20
+    high_compression: 0.05
+
+train:
+  updates: 300
+  batch_size: 2
+  lr: 3.0e-3
+  weight_decay: 0.0
+  grad_clip: 1.0
+  eval_every: 50
+  log_every: 25
+  lambda_delta_p: 1.0
+  lambda_delta_L: 0.0      # el MVP normal no produce torque: ver RESULTS_MVP
+
+rollout_horizons: [1, 5]

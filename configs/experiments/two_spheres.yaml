@@ -1,0 +1,38 @@
+# Nivel 3: dos esferas, colisión oblicua sin gravedad ni paredes.
+#
+# `1x` y `2x` para entrenamiento y validación; `4x` reservado como
+# extrapolación. Sistema aislado: es el test más limpio de conservación de
+# momento lineal y angular.
+#
+# El choque oblicuo NO se declara resuelto en el MVP: sin fricción ni spin, la
+# componente tangencial no puede reproducirse. Se reportan por separado el
+# error normal y el tangencial (§16.5).
+
+name: two_spheres
+
+data:
+  dataset: two_spheres
+  train_cases: ["1x"]
+  val_case: "2x"
+  test_cases: ["4x"]
+
+sampler:
+  quotas:
+    free: 0.25
+    pp: 0.40
+    pw: 0.0
+    mixed: 0.0
+    contact_birth: 0.30
+    high_compression: 0.05
+
+train:
+  updates: 400
+  batch_size: 4
+  lr: 3.0e-3
+  grad_clip: 1.0
+  eval_every: 50
+  log_every: 50
+  lambda_delta_p: 1.0
+  lambda_delta_L: 0.0
+
+rollout_horizons: [1, 5, 10, 25]

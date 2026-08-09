@@ -1,0 +1,18 @@
+# GNS clásico reducido: comparación SECUNDARIA.
+#
+# Cambia a la vez historia (6 posiciones), target (aceleración normalizada) y
+# representación de pared (distancias recortadas). Con tres variables movidas
+# al mismo tiempo, una diferencia de rendimiento no es atribuible a ninguna:
+# por eso no es la comparación principal y el informe debe decirlo.
+
+model:
+  hidden: 64
+  n_message_steps: 4
+  n_material_types: 4
+  material_dim: 8
+  activation: silu
+  history_length: 6
+  pp_gap_off: 0.35
+  pw_gap_off: 0.35
+  skin: 0.15
+  output_scale: 1.0

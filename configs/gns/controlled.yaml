@@ -1,0 +1,23 @@
+# GNS controlado: comparación principal.
+#
+# Mismos datos, grafo, consultas de pared, targets, splits, sampler, semillas y
+# presupuesto de actualizaciones que v3. Decoder vectorial directo por nodo,
+# sin potencial, convexidad, solver ni conservación impuesta.
+#
+# `hidden` y `n_message_steps` se eligen para que el conteo de parámetros quede
+# en el mismo orden que el de v3 con `hidden: 48`; el conteo real se reporta en
+# cada manifiesto y en el informe, nunca se supone.
+
+model:
+  hidden: 72
+  n_message_steps: 4
+  n_material_types: 4
+  material_dim: 8
+  activation: silu
+
+  # Idénticos a los de v3 para que el vecindario sea el mismo.
+  pp_gap_off: 0.35
+  pw_gap_off: 0.35
+  skin: 0.15
+
+  output_scale: 1.0

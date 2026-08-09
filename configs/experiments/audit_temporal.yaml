@@ -1,0 +1,26 @@
+# Auditoría temporal previa (§14 de las instrucciones maestras).
+#
+# `band_factor` es el ancho de la banda de candidatos en múltiplos del diámetro
+# de partícula: solo afecta a qué pares se miden, no a qué cuenta como contacto
+# (contacto = gap <= 0).
+
+band_factor: 0.10
+
+targets:
+  - dataset: two_spheres
+    cases: ["1x", "2x", "4x"]
+
+  - dataset: one_sphere_wall
+    cases: ["10", "30", "45", "60", "90"]
+
+  - dataset: sixty_gravity
+    cases: ["CASE01", "CASE02", "CASE06", "CASE07"]
+
+  - dataset: sixty_homogeneous
+    cases: ["CASE01", "CASE06"]
+
+  # Solo inferencia; se audita un tramo corto porque 2073 partículas x 2001
+  # snapshots hacen la matriz de distancias completa innecesariamente cara.
+  - dataset: rotating_cylinder
+    cases: ["CASE08"]
+    max_steps: 120

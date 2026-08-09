@@ -28,9 +28,44 @@ src/slgnn/     # paquete principal
   data.py        # loader robusto a las 3 variantes de esquema + adimensionalización
 tests/         # garantías por construcción (§37): equivariancia SO(3),
                # conservación de momento, disipación, acción-reacción
+  v3/          # suite estructural de v3 (float64)
+  baselines/   # contrato de los baselines
+  comparison/  # igualdad de datos, targets y ausencia de fuga entre batches
 scripts/       # mini_train.py: overfit del benchmark de 2 esferas
+  v3/          # auditoría temporal, train, evaluate, compare, micro-overfit
+docs/v3/       # contrato matemático, decisiones, auditoría de datos, resultados
 requirements.txt
 ```
+
+## SLGNN-v3
+
+Tercera versión de la arquitectura, en `src/slgnn_v3/`. **Coexiste con la
+versión anterior sin sustituirla**: `src/slgnn/` no se ha modificado y sus
+tests siguen pasando.
+
+El cambio central es la ecuación que resuelve el paso:
+
+```
+M (nu_{k+1} - nu_k) = dt F_reg,k + J_k^T Lambda_k
+```
+
+es decir, el modelo predice el **incremento de momento** —válido tanto para
+una fuerza integrada como para un impulso— en vez de forzar a una aceleración
+puntual a representar un evento casi discontinuo.
+
+```
+python scripts/v3/audit_temporal.py    # auditoría temporal del dataset
+python -m pytest tests/v3 -q           # suite estructural en float64
+python scripts/v3/run_micro_overfit.py # auditoría de cableado
+python scripts/v3/run_all_benchmarks.py
+```
+
+Documentación: [contrato matemático](docs/v3/MATHEMATICAL_CONTRACT.md),
+[decisiones](docs/v3/DECISIONS.md),
+[estado de implementación](docs/v3/IMPLEMENTATION_STATUS.md),
+[auditoría de datos](docs/v3/DATA_AUDIT.md),
+[protocolo experimental](docs/v3/EXPERIMENT_PROTOCOL.md),
+[resultados del MVP](docs/v3/RESULTS_MVP.md).
 
 ## Entorno
 

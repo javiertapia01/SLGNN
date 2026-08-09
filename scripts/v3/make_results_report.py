@@ -329,6 +329,16 @@ repiten aquí porque condicionan la lectura de cada número de arriba:
 
 ## 7. Comparación con GNS: cómo leerla
 
+> **Corrección posterior.** Las tablas de arriba se produjeron con
+> `λ_ΔL = 0` para las tres variantes. Una auditoría de equidad
+> ([AUDITORIA_EQUIDAD.md](AUDITORIA_EQUIDAD.md)) mostró que eso deja el canal
+> rotacional de GNS sin supervisar y, como `ω` realimenta su encoder, infla la
+> ventaja de v3 en rollout largo. Repetido con `λ_ΔL = 1` —que deja el
+> entrenamiento de v3 **bit a bit idéntico** y solo puede ayudar a GNS—, la
+> ventaja de v3-C en el experimento principal pasa de `2.53x` a `1.76x` a
+> h=25. **El orden entre las tres variantes no cambia en ningún experimento.**
+> Las cifras corregidas están en esa auditoría.
+
 Tres observaciones antes de mirar los números:
 
 1. **La diferencia en un paso es modesta; en rollout es grande.** Es la firma
@@ -381,9 +391,10 @@ No es un dato contra la recomendación, pero sí acota su alcance: lo que la
 evidencia respalda es que **en régimen granular denso con gravedad**, que es
 el objetivo, `v3-C` es la apuesta correcta.
 
-En los tres experimentos, ambos perfiles de v3 baten a GNS controlado en
-rollout por factores de 2 a 7, con presupuesto de parámetros equiparado
-(1.77e5 frente a 1.72e5) y protocolo idéntico.
+En los tres experimentos, el mejor perfil de v3 bate a GNS controlado en
+rollout a h=25 por factores de **1.8x, 3.2x y 7.8x** —cifras ya corregidas por
+la auditoría de equidad—, con presupuesto de parámetros equiparado (1.77e5
+frente a 1.72e5) y protocolo idéntico.
 
 **Qué implementar a continuación, en este orden:**
 

@@ -1,0 +1,38 @@
+# Ablación de equidad: idéntico a `one_sphere_wall` salvo `lambda_delta_L = 1`.
+#
+# Con `lambda_delta_L = 0` la rotación no está supervisada para nadie. Para v3
+# eso es inocuo —predice `Delta L = 0` exactamente, así que el término es una
+# constante de gradiente nulo y el entrenamiento sale bit a bit idéntico—, pero
+# deja libre el decoder rotacional de GNS, y `omega` es una feature de entrada
+# de su encoder. La deriva se realimenta y contamina también la posición.
+#
+# Activarlo solo puede ayudar a GNS: es una ablación fair-by-construction.
+
+name: one_sphere_wall_dL
+
+data:
+  dataset: one_sphere_wall
+  train_cases: ["90"]
+  val_case: "60"
+  test_cases: ["45", "30", "10"]
+
+sampler:
+  quotas:
+    free: 0.20
+    pp: 0.0
+    pw: 0.40
+    mixed: 0.0
+    contact_birth: 0.35
+    high_compression: 0.05
+
+train:
+  updates: 400
+  batch_size: 4
+  lr: 3.0e-3
+  grad_clip: 1.0
+  eval_every: 50
+  log_every: 50
+  lambda_delta_p: 1.0
+  lambda_delta_L: 1.0   # <-- única diferencia
+
+rollout_horizons: [1, 5, 10, 25]

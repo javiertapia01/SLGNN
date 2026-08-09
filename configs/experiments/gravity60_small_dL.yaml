@@ -1,0 +1,47 @@
+# Ablación de equidad: idéntico a `gravity60_small` salvo `lambda_delta_L = 1`.
+#
+# Motivo. Con `lambda_delta_L = 0` la rotación no está supervisada para nadie.
+# Eso es correcto para v3 —predice `Delta L = 0` exactamente y no hay nada que
+# aprender— pero deja el decoder rotacional de GNS libre, y `omega` es una
+# feature de entrada de su encoder. La deriva de `omega` se realimenta paso a
+# paso y contamina también la posición: medido, el RMSE de `omega` de GNS pasa
+# de 0.15 en h=1 a 4.29 en h=25, mientras el de v3 se queda en 0.05.
+#
+# Es decir: parte de la desventaja de GNS en rollout podría venir de un canal
+# sin supervisar, no de la falta de estructura. Esta ablación lo separa.
+#
+# Es una ablación **fair-by-construction**: activar `lambda_delta_L` no cambia
+# el entrenamiento de v3 (su `Delta L` es idénticamente cero, luego el término
+# es una constante con gradiente nulo) y solo puede ayudar a GNS.
+
+name: gravity60_small_dL
+
+data:
+  dataset: sixty_gravity
+  train_cases: ["CASE01", "CASE02", "CASE03", "CASE04", "CASE05"]
+  val_case: "CASE06"
+  test_cases: ["CASE07"]
+  frame_start: 150
+  frame_stop: 650
+
+sampler:
+  quotas:
+    free: 0.15
+    pp: 0.20
+    pw: 0.20
+    mixed: 0.20
+    contact_birth: 0.20
+    high_compression: 0.05
+
+train:
+  updates: 400
+  batch_size: 2
+  lr: 1.0e-3          # se reemplaza por la rejilla con --tune-lr
+  grad_clip: 1.0
+  eval_every: 100
+  log_every: 50
+  lambda_delta_p: 1.0
+  lambda_delta_L: 1.0   # <-- la única diferencia con gravity60_small
+
+rollout_horizons: [1, 5, 10, 25]
+seeds: [0, 1, 2]

@@ -133,7 +133,72 @@ Caso reservado: CASE07 — energía cinética inicial ≈3× la de entrenamiento
 | precisión de contacto | 0.9759 ± 0 | 0.9675 ± 0.0056 | 0.9643 ± 0 |
 | penetración máxima | 0.05269 ± 0.00031 | 0.05333 ± 0.0081 | 0.05808 ± 0.0001 |
 
-## 3.2 Experimento `one_sphere_wall`
+## 3.2 Experimento `gravity60_small_dL`
+
+Semillas: `[0, 1, 2]`. Selección de lr por validación con presupuesto idéntico por familia.
+
+| Variante | lr elegido | rejilla (pérdida de validación) |
+|---|---|---|
+| v3-C | 0.0001 | lr=0.003: 0.0002395, lr=0.001: 0.0002379, lr=0.0003: 0.000234, lr=0.0001: 0.0002327 |
+| v3-I | 0.003 | lr=0.003: 0.0003331, lr=0.001: 0.0004341, lr=0.0003: 0.0004342, lr=0.0001: 0.0004343 |
+| GNS controlado | 0.0003 | lr=0.003: 0.0003353, lr=0.001: 0.0003345, lr=0.0003: 0.000334, lr=0.0001: 0.000335 |
+
+### Generalización de un paso (validación)
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.007807 ± 6.8e-05 | 0.008022 ± 0.0018 | 0.009101 ± 4.6e-06 |
+| RMSE `Δp` vuelo libre | 0.0004962 ± 2.1e-05 | 0.001294 ± 0.00058 | 0.001012 ± 8.2e-06 |
+| RMSE `Δp` partícula–partícula | 0.02297 ± 0.00023 | 0.02353 ± 0.0066 | 0.02739 ± 6.5e-06 |
+| RMSE `Δp` partícula–pared | 0.0247 ± 0.00013 | 0.02425 ± 0.0043 | 0.02678 ± 7.7e-05 |
+| RMSE `Δp` mixto | 0.006247 ± 1.7e-06 | 0.006277 ± 0 | 0.006321 ± 9e-05 |
+| MAE `Δp` global | 0.001512 ± 1.2e-05 | 0.001543 ± 0.00028 | 0.001898 ± 2.1e-05 |
+| RMSE `ΔL` global (⚠ ver nota) | 0.0005404 ± 0 | 0.0005404 ± 0 | 0.0006024 ± 1.3e-05 |
+| fracción normal del error | 0.956 ± 0.00054 | 0.915 ± 0.056 | 0.9406 ± 0.001 |
+| fracción tangencial del error | 0.04396 ± 0.00054 | 0.08498 ± 0.056 | 0.05941 ± 0.001 |
+
+> ⚠ **La fila de `ΔL` no es una comparación.** Con `λ_ΔL = 0` —igual
+> para las tres variantes— la rotación no está supervisada. v3 predice
+> `ΔL = 0` exactamente por construcción, así que su cifra es la norma
+> del target; GNS tiene una salida rotacional libre que deriva sin
+> señal. Ninguno de los dos números mide capacidad rotacional.
+
+### Estabilidad de rollout
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `q` a h=1 | 0.0004313 ± 3.9e-06 | 0.0005473 ± 1.8e-05 | 0.0005398 ± 5.5e-07 |
+| RMSE `q` a h=5 | 0.007331 ± 0.00011 | 0.0081 ± 0.0027 | 0.009724 ± 3.1e-05 |
+| RMSE `q` a h=10 | 0.01935 ± 0.00034 | 0.02303 ± 0.0082 | 0.02809 ± 0.00013 |
+| RMSE `q` a h=25 | 0.05255 ± 0.00083 | 0.07462 ± 0.026 | 0.09244 ± 0.001 |
+| RMSE `v` a h=25 | 0.03635 ± 0.0005 | 0.04681 ± 0.014 | 0.05661 ± 0.00085 |
+| fracción de rollouts sin NaN | 1 ± 0 | 1 ± 0 | 1 ± 0 |
+| pasos hasta NaN (H+1 = nunca falló) | 26 ± 0 | 26 ± 0 | 26 ± 0 |
+
+### Coste
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| parámetros | 1.769e+05 ± 0 | 1.769e+05 ± 0 | 1.715e+05 ± 0 |
+| segundos de entrenamiento | 55.74 ± 1.6 | 122.9 ± 46 | 13.77 ± 0.041 |
+| segundos por paso de inferencia | 0.05848 ± 0.0015 | 0.1714 ± 0.027 | 0.02324 ± 0.0012 |
+| mejor pérdida de validación | 0.0002377 ± 5.2e-06 | 0.000266 ± 0.00012 | 0.0003347 ± 6.8e-07 |
+
+### Extrapolación (evaluada una sola vez, al cerrar la fase)
+
+Caso reservado: gravity60_small_dL.
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.01064 ± 6.3e-05 | 0.01068 ± 0.0017 | 0.0117 ± 5.9e-06 |
+| RMSE `Δp` partícula–partícula | 0.03037 ± 0.00018 | 0.03047 ± 0.0048 | 0.03332 ± 4.1e-06 |
+| RMSE `Δp` partícula–pared | 0.02785 ± 0.00015 | 0.02693 ± 0.0055 | 0.03013 ± 4.3e-05 |
+| RMSE `q` a h=1 | 0.0005797 ± 4.9e-06 | 0.0006537 ± 2e-05 | 0.0006684 ± 8.7e-07 |
+| RMSE `q` a h=25 | 0.07612 ± 0.0012 | 0.09952 ± 0.035 | 0.1226 ± 0.0012 |
+| precisión de contacto | 0.9759 ± 0 | 0.9675 ± 0.0056 | 0.9644 ± 0.00012 |
+| penetración máxima | 0.05269 ± 0.00031 | 0.05333 ± 0.0081 | 0.05809 ± 2.3e-05 |
+
+## 3.3 Experimento `one_sphere_wall`
 
 Semillas: `[0, 1, 2]`. Selección de lr por validación con presupuesto idéntico por familia.
 
@@ -206,7 +271,69 @@ Caso reservado: ángulos oblicuos 45°, 30° y 10° — diagnóstico de física 
 | precisión de contacto | 1 ± 0 | 1 ± 0 | 1 ± 0 |
 | penetración máxima | 0.1942 ± 0.00028 | 0.1926 ± 2.9e-05 | 0.1928 ± 0.00023 |
 
-## 3.3 Experimento `two_spheres`
+## 3.4 Experimento `one_sphere_wall_dL`
+
+Semillas: `[0, 1, 2]`. Selección de lr por validación con presupuesto idéntico por familia.
+
+| Variante | lr elegido | rejilla (pérdida de validación) |
+|---|---|---|
+| v3-C | 0.0001 | lr=0.003: 5.956e-05, lr=0.001: 5.68e-05, lr=0.0003: 4.332e-05, lr=0.0001: 3.002e-05 |
+| v3-I | 0.0003 | lr=0.003: 6.589e-05, lr=0.001: 3.392e-05, lr=0.0003: 3.023e-05, lr=0.0001: 3.845e-05 |
+| GNS controlado | 0.003 | lr=0.003: 4.623e-05, lr=0.001: 5.043e-05, lr=0.0003: 5.337e-05, lr=0.0001: 5.677e-05 |
+
+### Generalización de un paso (validación)
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.003785 ± 0.00016 | 0.003117 ± 1.3e-05 | 0.003356 ± 0.00013 |
+| RMSE `Δp` vuelo libre | 3.326e-06 ± 1.4e-07 | 0.000452 ± 1.7e-05 | 0.001647 ± 0.00017 |
+| RMSE `Δp` partícula–pared | 0.01338 ± 0.00057 | 0.01091 ± 5.4e-05 | 0.01046 ± 0.00047 |
+| MAE `Δp` global | 0.0005942 ± 2.3e-05 | 0.0005112 ± 1.7e-06 | 0.001319 ± 7.4e-05 |
+| RMSE `ΔL` global (⚠ ver nota) | 0.0001803 ± 0 | 0.0001803 ± 0 | 0.000309 ± 9.9e-05 |
+| fracción normal del error | 0.9267 ± 0.0089 | 0.9151 ± 0.00085 | 0.9328 ± 0.019 |
+| fracción tangencial del error | 0.07329 ± 0.0089 | 0.08493 ± 0.00085 | 0.06724 ± 0.019 |
+
+> ⚠ **La fila de `ΔL` no es una comparación.** Con `λ_ΔL = 0` —igual
+> para las tres variantes— la rotación no está supervisada. v3 predice
+> `ΔL = 0` exactamente por construcción, así que su cifra es la norma
+> del target; GNS tiene una salida rotacional libre que deriva sin
+> señal. Ninguno de los dos números mide capacidad rotacional.
+
+### Estabilidad de rollout
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `q` a h=1 | 0.002423 ± 0 | 0.002423 ± 0 | 0.002494 ± 9.9e-06 |
+| RMSE `q` a h=5 | 0.0001176 ± 4.2e-06 | 0.0004195 ± 1.1e-05 | 0.002629 ± 0.00026 |
+| RMSE `q` a h=10 | 0.002003 ± 5.8e-05 | 0.0005279 ± 2.4e-05 | 0.0075 ± 0.00088 |
+| RMSE `q` a h=25 | 0.02711 ± 0.0019 | 0.01523 ± 0.00017 | 0.04924 ± 0.0034 |
+| RMSE `v` a h=25 | 0.01558 ± 0.0023 | 0.008399 ± 0.00014 | 0.02865 ± 0.0025 |
+| fracción de rollouts sin NaN | 1 ± 0 | 1 ± 0 | 1 ± 0 |
+| pasos hasta NaN (H+1 = nunca falló) | 26 ± 0 | 26 ± 0 | 26 ± 0 |
+
+### Coste
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| parámetros | 1.769e+05 ± 0 | 1.769e+05 ± 0 | 1.715e+05 ± 0 |
+| segundos de entrenamiento | 13.78 ± 0.21 | 22.78 ± 0.32 | 2.68 ± 0.024 |
+| segundos por paso de inferencia | 0.006593 ± 0.00035 | 0.007082 ± 5.8e-05 | 0.003656 ± 6.3e-05 |
+| mejor pérdida de validación | 3.204e-05 ± 2e-06 | 3.083e-05 ± 1.6e-06 | 4.373e-05 ± 3.3e-06 |
+
+### Extrapolación (evaluada una sola vez, al cerrar la fase)
+
+Caso reservado: one_sphere_wall_dL.
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.00647 ± 0.00028 | 0.005374 ± 2.3e-05 | 0.005607 ± 0.00031 |
+| RMSE `Δp` partícula–pared | 0.02287 ± 0.00097 | 0.01887 ± 9e-05 | 0.01907 ± 0.0011 |
+| RMSE `q` a h=1 | 0.002295 ± 1.7e-05 | 0.00221 ± 1.5e-06 | 0.002285 ± 1.6e-05 |
+| RMSE `q` a h=25 | 0.04704 ± 0.005 | 0.03384 ± 0.00014 | 0.04524 ± 0.0029 |
+| precisión de contacto | 1 ± 0 | 1 ± 0 | 1 ± 0 |
+| penetración máxima | 0.1942 ± 0.00028 | 0.1926 ± 2.9e-05 | 0.1929 ± 0.00037 |
+
+## 3.5 Experimento `two_spheres`
 
 Semillas: `[0, 1, 2]`. Selección de lr por validación con presupuesto idéntico por familia.
 
@@ -274,6 +401,68 @@ Caso reservado: `4x` — escala de velocidad 4× la de entrenamiento.
 | precisión de contacto | 1 ± 0 | 1 ± 0 | 1 ± 0 |
 | penetración máxima | 0.4898 ± 0.0017 | 0.505 ± 0.00098 | 0.5152 ± 0.0014 |
 
+## 3.6 Experimento `two_spheres_dL`
+
+Semillas: `[0, 1, 2]`. Selección de lr por validación con presupuesto idéntico por familia.
+
+| Variante | lr elegido | rejilla (pérdida de validación) |
+|---|---|---|
+| v3-C | 0.001 | lr=0.003: 2.191e-05, lr=0.001: 2.138e-05, lr=0.0003: 2.316e-05, lr=0.0001: 3.045e-05 |
+| v3-I | 0.001 | lr=0.003: 0.0003858, lr=0.001: 0.0001529, lr=0.0003: 0.0001887, lr=0.0001: 0.0009512 |
+| GNS controlado | 0.0003 | lr=0.003: 0.0006216, lr=0.001: 0.0005075, lr=0.0003: 0.0004838, lr=0.0001: 0.000486 |
+
+### Generalización de un paso (validación)
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.003511 ± 0.00043 | 0.008699 ± 0.00018 | 0.01189 ± 0.0011 |
+| RMSE `Δp` vuelo libre | 0.0002553 ± 1.1e-05 | 0.001491 ± 0.00016 | 0.007166 ± 0.0017 |
+| RMSE `Δp` partícula–partícula | 0.01056 ± 0.0013 | 0.02588 ± 0.00062 | 0.02931 ± 0.0015 |
+| MAE `Δp` global | 0.000771 ± 8.7e-05 | 0.001845 ± 3.1e-05 | 0.006926 ± 0.0013 |
+| RMSE `ΔL` global (⚠ ver nota) | 0.00048 ± 6.3e-20 | 0.00048 ± 6.3e-20 | 0.005627 ± 0.0028 |
+| fracción normal del error | 0.8312 ± 0.038 | 0.9606 ± 0.017 | 0.9731 ± 0.0061 |
+| fracción tangencial del error | 0.1688 ± 0.038 | 0.03943 ± 0.017 | 0.0269 ± 0.0061 |
+
+> ⚠ **La fila de `ΔL` no es una comparación.** Con `λ_ΔL = 0` —igual
+> para las tres variantes— la rotación no está supervisada. v3 predice
+> `ΔL = 0` exactamente por construcción, así que su cifra es la norma
+> del target; GNS tiene una salida rotacional libre que deriva sin
+> señal. Ninguno de los dos números mide capacidad rotacional.
+
+### Estabilidad de rollout
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `q` a h=1 | 0.005209 ± 3.3e-06 | 0.005234 ± 4.8e-06 | 0.00528 ± 3.3e-05 |
+| RMSE `q` a h=5 | 0.001728 ± 0.00031 | 0.005133 ± 0.00014 | 0.0146 ± 0.002 |
+| RMSE `q` a h=10 | 0.004686 ± 0.00057 | 0.01351 ± 0.00057 | 0.04159 ± 0.0072 |
+| RMSE `q` a h=25 | 0.02608 ± 0.0027 | 0.07053 ± 0.0023 | 0.2034 ± 0.049 |
+| RMSE `v` a h=25 | 0.01904 ± 0.0014 | 0.04977 ± 0.00092 | 0.1522 ± 0.035 |
+| fracción de rollouts sin NaN | 1 ± 0 | 1 ± 0 | 1 ± 0 |
+| pasos hasta NaN (H+1 = nunca falló) | 26 ± 0 | 26 ± 0 | 26 ± 0 |
+
+### Coste
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| parámetros | 1.769e+05 ± 0 | 1.769e+05 ± 0 | 1.715e+05 ± 0 |
+| segundos de entrenamiento | 14.08 ± 0.28 | 23.16 ± 0.26 | 6.692 ± 0.11 |
+| segundos por paso de inferencia | 0.0075 ± 0.00069 | 0.008768 ± 0.0012 | 0.003793 ± 0.00016 |
+| mejor pérdida de validación | 1.832e-05 ± 2.7e-06 | 0.0001723 ± 1.7e-05 | 0.000473 ± 0.00013 |
+
+### Extrapolación (evaluada una sola vez, al cerrar la fase)
+
+Caso reservado: two_spheres_dL.
+
+| Métrica | v3-C | v3-I | GNS controlado |
+|---|---|---|---|
+| RMSE `Δp` global | 0.01277 ± 0.0011 | 0.01801 ± 7.1e-05 | 0.02057 ± 0.00069 |
+| RMSE `Δp` partícula–partícula | 0.0385 ± 0.0032 | 0.05343 ± 0.00035 | 0.05797 ± 0.0014 |
+| RMSE `q` a h=1 | 0.01103 ± 3.1e-05 | 0.01092 ± 3.7e-06 | 0.01098 ± 7.7e-05 |
+| RMSE `q` a h=25 | 0.05307 ± 0.0027 | 0.1042 ± 0.0033 | 0.3024 ± 0.045 |
+| precisión de contacto | 1 ± 0 | 1 ± 0 | 1 ± 0 |
+| penetración máxima | 0.4898 ± 0.0017 | 0.505 ± 0.00098 | 0.5139 ± 0.0012 |
+
 ---
 
 ## 5. Qué dice la auditoría temporal sobre el régimen
@@ -336,6 +525,16 @@ repiten aquí porque condicionan la lectura de cada número de arriba:
 
 ## 7. Comparación con GNS: cómo leerla
 
+> **Corrección posterior.** Las tablas de arriba se produjeron con
+> `λ_ΔL = 0` para las tres variantes. Una auditoría de equidad
+> ([AUDITORIA_EQUIDAD.md](AUDITORIA_EQUIDAD.md)) mostró que eso deja el canal
+> rotacional de GNS sin supervisar y, como `ω` realimenta su encoder, infla la
+> ventaja de v3 en rollout largo. Repetido con `λ_ΔL = 1` —que deja el
+> entrenamiento de v3 **bit a bit idéntico** y solo puede ayudar a GNS—, la
+> ventaja de v3-C en el experimento principal pasa de `2.53x` a `1.76x` a
+> h=25. **El orden entre las tres variantes no cambia en ningún experimento.**
+> Las cifras corregidas están en esa auditoría.
+
 Tres observaciones antes de mirar los números:
 
 1. **La diferencia en un paso es modesta; en rollout es grande.** Es la firma
@@ -388,9 +587,10 @@ No es un dato contra la recomendación, pero sí acota su alcance: lo que la
 evidencia respalda es que **en régimen granular denso con gravedad**, que es
 el objetivo, `v3-C` es la apuesta correcta.
 
-En los tres experimentos, ambos perfiles de v3 baten a GNS controlado en
-rollout por factores de 2 a 7, con presupuesto de parámetros equiparado
-(1.77e5 frente a 1.72e5) y protocolo idéntico.
+En los tres experimentos, el mejor perfil de v3 bate a GNS controlado en
+rollout a h=25 por factores de **1.8x, 3.2x y 7.8x** —cifras ya corregidas por
+la auditoría de equidad—, con presupuesto de parámetros equiparado (1.77e5
+frente a 1.72e5) y protocolo idéntico.
 
 **Qué implementar a continuación, en este orden:**
 

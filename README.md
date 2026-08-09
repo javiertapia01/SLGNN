@@ -26,6 +26,9 @@ src/slgnn/     # paquete principal
   integrator.py  # Euler semiimplícito + rollout
   losses.py      # L_a, L_alpha, L_roll, L_res, L_pass, L_pen
   data.py        # loader robusto a las 3 variantes de esquema + adimensionalización
+src/slgnn_v3/  # SLGNN-v3: arquitectura energético-disipativa e impulsiva
+src/gns_baseline/     # baselines GNS para la comparación controlada
+src/slgnn_experiments/  # infraestructura neutral compartida por v3 y GNS
 tests/         # garantías por construcción (§37): equivariancia SO(3),
                # conservación de momento, disipación, acción-reacción
   v3/          # suite estructural de v3 (float64)

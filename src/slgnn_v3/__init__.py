@@ -12,7 +12,7 @@ Ecuación discreta central:
 
 Estado del MVP: `V`, `Psi` e `I` activos solo en dirección normal; `M`
 (memoria tangencial) y `C` (cierre residual) son contratos declarados sin
-implementar. Ver `docs/v3/IMPLEMENTATION_STATUS.md`.
+implementar. Ver `docs/slgnn_v3/IMPLEMENTATION_STATUS.md`.
 """
 
 from .config import (

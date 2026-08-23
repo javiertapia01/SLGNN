@@ -54,13 +54,30 @@ vs `feed_has_micro_support`) hasta el reporte.
 ## Cómo correrlo
 
 ```bash
-python experiments/exp_H_hysteresis.py              # T1: ¿omega ↦ E^coll es función?
-python experiments/exp_E1_value_of_information.py   # T2: ¿el espectro cambia decisiones?
-python experiments/exp_E2_spectrum_estimators.py    # T3: necesita checkpoint de SLGNN
+python experiments/twin/exp_H_hysteresis.py              # T1: ¿omega ↦ E^coll es función?
+python experiments/twin/exp_E1_value_of_information.py   # T2: ¿el espectro cambia decisiones?
+python experiments/twin/exp_E2_spectrum_estimators.py    # T3: necesita checkpoint de SLGNN
 pytest tests/test_events.py tests/test_coarse.py tests/test_macro.py
 ```
 
-Todo parámetro vive en `configs/twin_toy.yaml`.
+Todo parámetro vive en `configs/twin/twin_toy.yaml`.
+
+### Interfaz gráfica
+
+```bash
+python scripts/twin/gui.py
+```
+
+Cinco pestañas —biblioteca, histéresis, PBM, lazo cerrado y los arcos de E1—
+sobre los mismos operadores, sin dependencias fuera de `requirements.txt`
+(Tkinter viene con Python). No calcula nada nuevo: mueve las perillas de
+`twin_toy.yaml` en vivo y grafica el resultado.
+
+`C_phi` sobre la rampa cuesta ~30 s, así que la biblioteca se construye al abrir
+y se cachea en `results/twin/cache/`; los arranques siguientes son inmediatos.
+La caché se invalida sola si cambian las secciones `data` o `coarse` del
+config. Todo lo que viene después de la biblioteca —PBM, MPC, lazo cerrado— es
+de milisegundos, y ésa es la parte interactiva.
 
 ## Tres desviaciones respecto de la especificación, todas medidas
 

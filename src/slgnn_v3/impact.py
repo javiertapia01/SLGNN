@@ -68,7 +68,7 @@ class ImpactHead(nn.Module):
         if cfg.friction:
             raise NotImplementedError(
                 "La fricción impulsiva no está implementada en el MVP normal. "
-                "Ver docs/v3/IMPLEMENTATION_STATUS.md, fase 9."
+                "Ver docs/slgnn_v3/IMPLEMENTATION_STATUS.md, fase 9."
             )
         self.net = mlp(
             [self.N_PREIMPACT + enc.hidden, cfg.hidden, cfg.hidden, 2], enc.activation

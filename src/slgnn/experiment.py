@@ -24,7 +24,7 @@ def load_split(cfg, root: Path):
     El eje de gravedad (`cfg["data"]["gravity_axis"]`) fue verificado
     empíricamente contra los datos reales (las partículas sedimentan en −y,
     no en −z como asumiría un default ingenuo) — ver DATA_NOTES.md /
-    Informe_Estrategia_Entrenamiento_SLGNN.md.
+    docs/slgnn_v2/training/Informe_Estrategia_Entrenamiento_SLGNN.md.
     """
     scales = default_scales()
     base = root / "data" / "extracted" / cfg["data"]["dataset"]
@@ -92,7 +92,7 @@ def asdict_config(c: SLGNNConfig):
 
 
 def load_checkpoint(path: Path):
-    """Carga un checkpoint guardado por scripts/train.py y reconstruye el modelo."""
+    """Carga un checkpoint guardado por scripts/slgnn_v2/train.py."""
     ck = torch.load(path, map_location="cpu", weights_only=False)
     model = SLGNN(SLGNNConfig(**ck["model_config"]))
     model.load_state_dict(ck["model"])

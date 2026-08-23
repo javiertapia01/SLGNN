@@ -124,7 +124,7 @@ def default_scales() -> Scales:
     `L0` = diámetro de partícula (5 mm), `M0` = masa de una partícula,
     `T0 = 1e-3 s`. Con `dt = 1e-4 s` el paso adimensional es `dt' = 0.1` y las
     velocidades típicas quedan O(1) — el rango donde `softplus`/`sigmoid`
-    tienen gradiente útil. Ver `docs/v3/DECISIONS.md` D-013 para por qué esto
+    tienen gradiente útil. Ver `docs/slgnn_v3/DECISIONS.md` D-013 para por qué esto
     difiere de `T0 = 0.01 s` del legacy.
     """
     d = DEFAULT_DIAMETER

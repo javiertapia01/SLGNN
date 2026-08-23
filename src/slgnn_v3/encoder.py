@@ -88,6 +88,23 @@ def kinematic_features(contacts: ContactSet, particles: ParticleBatch,
     ], dim=-1)
 
 
+def dissipation_context_features(
+    contacts: ContactSet, age: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Contexto de `Psi` independiente de las velocidades generalizadas.
+
+    La familia polinómica de :mod:`slgnn_v3.dissipation` garantiza convexidad
+    sólo si sus coeficientes no dependen de ``s_n`` ni ``s_tau``. Se conserva
+    el mismo ancho de entrada del processor para mantener estable su esquema,
+    pero los cuatro canales cinemáticos se fijan a cero. La edad de contacto
+    sí es contexto admisible porque no depende de ``nu`` dentro del paso.
+    """
+    if age is None:
+        age = torch.zeros_like(contacts.u_n)
+    z = torch.zeros_like(contacts.u_n)
+    return torch.stack([z, z, z, z, age.to(z.dtype)], dim=-1)
+
+
 class GeometricEncoder(nn.Module):
     """Latentes de nodo y de contacto a partir de geometría y material."""
 

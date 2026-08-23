@@ -1,0 +1,68 @@
+run_id: slgnn-v2__S00-PP2O__S01-PW1-RP__S02-JOINT-PP2O-PW1__S02-R2-preN60__seeds-20260741-43
+lineage:
+  - S00-PP2O
+  - S01-PW1-RP
+  - S02-JOINT-PP2O-PW1
+  - S02-R2-preN60
+
+parent_checkpoint: checkpoints/slgnn_v2/curriculum/S02_joint_pp2o_pw1/slgnn-v2__S00-PP2O__S01-PW1-RP__S02-JOINT-PP2O-PW1__seed-20260736/best-joint.pt
+particle_specialist_checkpoint: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres/final_all.pt
+seeds: [20260741, 20260742, 20260743]
+
+data:
+  wall_dataset: Benchmark_1Sphere_Multiple_Wall_Collision
+  wall_cases: ["10", "30", "45", "60", "90"]
+  particle_dataset: Benchmark_2Spheres_Oblique_Collision
+  particle_cases: [1x, 2x, 4x]
+  dt: 0.0001
+
+model:
+  hidden: 16
+  layers: 2
+  use_history: true
+  r_on: 1.05
+  r_off: 1.5
+  r_list: 2.0
+  g_on: 0.05
+  g_off: 0.5
+
+initialization:
+  pp_head_extrapolation_alpha: 1.35
+
+training:
+  one_step_iterations: 240
+  wall_batch_size: 5
+  particle_batch_size: 5
+  particle_case_sequence: [1x, 2x, 4x, 4x]
+  active_probability: 0.9
+  weight_wall: 0.45
+  weight_particle: 0.55
+  anchor_weight: 0.10
+  lr_wall_heads: 0.000005
+  lr_particle_heads: 0.00003
+  lr_processors: 0.00001
+  lr_material_encoder: 0.000002
+  weight_decay: 0.000001
+  grad_clip: 3.0
+  holdout_modulus: 5
+  log_every: 60
+
+rollout:
+  horizons: [8, 16, 32]
+  iterations: [12, 12, 8]
+  learning_rate_multiplier: 0.5
+  tbptt_chunk: 4
+  sigma_q: 0.1
+  noise_q: 0.001
+  noise_v: 0.005
+
+evaluation:
+  active_acceleration_threshold: 0.001
+  max_wall_degradation: 0.05
+  max_particle_median_degradation: 0.10
+  max_case_ratio_to_specialist: 1.10
+  minimum_seed_pass_fraction: 0.6666667
+
+output:
+  checkpoint_root: checkpoints/slgnn_v2/curriculum/S02_R2_preN60
+  result_root: results/slgnn_v2/curriculum/S02_R2_preN60

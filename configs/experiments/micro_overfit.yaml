@@ -16,7 +16,7 @@ data:
   train_cases: ["CASE01"]
   val_case: "CASE02"
   # Ventana elegida CON la auditoría, no a ojo: en CASE01 el primer contacto
-  # aparece cerca del snapshot 190 (docs/v3/DATA_AUDIT.md §7). Un prefijo
+  # aparece cerca del snapshot 190 (docs/slgnn_v3/DATA_AUDIT.md §7). Un prefijo
   # [0, 120) no contiene ni un contacto y el micro-overfit solo aprendería
   # caída libre.
   frame_start: 185

@@ -36,7 +36,7 @@ from .state import ContactMemoryState
 _MSG = (
     "La memoria tangencial M no está implementada en el MVP normal de SLGNN-v3. "
     "Requiere transporte entre planos tangentes, ley trial, proyección de "
-    "Coulomb y corrección de xi en sliding. Ver docs/v3/IMPLEMENTATION_STATUS.md."
+    "Coulomb y corrección de xi en sliding. Ver docs/slgnn_v3/IMPLEMENTATION_STATUS.md."
 )
 
 

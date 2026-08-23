@@ -38,7 +38,7 @@ class ClosureHead(nn.Module):
             raise NotImplementedError(
                 "El cierre residual C no puede activarse en el MVP. Requiere un "
                 "análisis de residuales que identifique estructura reproducible "
-                "no explicada por V, Psi, M e I. Ver docs/v3/DECISIONS.md."
+                "no explicada por V, Psi, M e I. Ver docs/slgnn_v3/DECISIONS.md."
             )
         self.enabled = False
 

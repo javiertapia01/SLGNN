@@ -58,12 +58,21 @@ class PotentialConfig:
 
 @dataclass
 class DissipationConfig:
-    """Cabeza disipativa convexa `Psi`. Solo canal normal en el MVP."""
+    """Cabeza disipativa convexa `Psi`.
+
+    El canal tangencial es disipación continua sin memoria. Produce fuerzas y
+    torques (spin) mediante `J^T`, pero no pretende representar por sí solo
+    sticking/sliding ni el límite de Coulomb persistente de la cabeza `M`.
+    """
 
     hidden: int = 64
     d0: float = 1.0
-    tangential: bool = False    # canal tangencial: no implementado en el MVP
+    tangential: bool = False    # Psi_tau continua; M sigue siendo necesaria para Coulomb
     rotational: bool = False    # rodadura/torsión: no implementado en el MVP
+    eps_tangential: float = 1e-12  # regularización de u_tau / ||u_tau||
+    # False conserva la semántica/checkpoints del MVP normal histórico. Todo
+    # perfil nuevo con Psi_tau debe usar True para que c1,c2 no dependan de s.
+    state_independent_coefficients: bool = False
 
 
 @dataclass

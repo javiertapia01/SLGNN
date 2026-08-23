@@ -1,0 +1,83 @@
+run_id: slgnn-v2__S00-PP2O__S01-PW1-RP__S02-JOINT-PP2O-PW1__seed-20260736
+seed: 20260736
+
+lineage:
+  - S00-PP2O
+  - S01-PW1-RP
+  - S02-JOINT-PP2O-PW1
+
+parent_checkpoint: checkpoints/slgnn_v2/benchmarks/benchmark_wall_transfer/transfer_final.pt
+reference_checkpoints:
+  particle_particle: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres/final_all.pt
+  particle_wall: checkpoints/slgnn_v2/benchmarks/benchmark_wall_transfer/scratch_final.pt
+
+data:
+  wall_dataset: Benchmark_1Sphere_Multiple_Wall_Collision
+  wall_cases: ["10", "30", "45", "60", "90"]
+  particle_dataset: Benchmark_2Spheres_Oblique_Collision
+  particle_cases: [1x, 2x, 4x]
+  dt: 0.0001
+
+model:
+  hidden: 16
+  layers: 2
+  use_history: true
+  r_on: 1.05
+  r_off: 1.5
+  r_list: 2.0
+  g_on: 0.05
+  g_off: 0.5
+
+calibration:
+  wall_head_iters: 400
+  particle_head_iters: 300
+  batch_size: 5
+  active_probability: 0.8
+  lr_wall_head: 0.001
+  lr_particle_head: 0.0005
+
+joint:
+  one_step_iters: 1200
+  wall_batch_size: 5
+  particle_batch_size: 3
+  active_probability: 0.8
+  task_weight_wall: 0.5
+  task_weight_particle: 0.5
+  lr_wall_heads: 0.0003
+  lr_particle_heads: 0.0003
+  lr_processors: 0.00005
+  lr_material_encoder: 0.00002
+  weight_decay: 0.000001
+  grad_clip: 5.0
+  log_every: 100
+
+rollout:
+  horizons: [8, 16, 32]
+  iterations: [100, 100, 75]
+  tbptt_chunk: 4
+  sigma_q: 0.1
+  noise_q: 0.002
+  noise_v: 0.01
+  log_every: 25
+
+evaluation:
+  active_acceleration_threshold: 0.001
+  max_allowed_pp_degradation: 0.10
+
+recovery:
+  source_checkpoint: best-joint.pt
+  specialist_checkpoint: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres/final_all.pt
+  critical_case: 4x
+  case_sequence: [1x, 2x, 4x, 4x, 4x]
+  one_step_iters: 500
+  batch_size: 5
+  active_probability: 0.85
+  lr_one_step: 0.0002
+  rollout_horizons: [8, 16, 32]
+  rollout_iterations: [50, 50, 50]
+  lr_rollout: 0.0001
+  max_case_ratio_to_specialist: 1.10
+
+output:
+  checkpoint_root: checkpoints/slgnn_v2/curriculum/S02_joint_pp2o_pw1
+  result_root: results/slgnn_v2/curriculum/S02_joint_pp2o_pw1

@@ -26,7 +26,7 @@ Los datos dicen lo contrario, con dos señales independientes medidas sobre
 
 Conclusión: la fórmula del PDF es la que usó el solver; lo equivocado es su
 prosa. El tambor **invierte el sentido de giro**. Ver
-`experiments/exp_H_hysteresis.py`, que reproduce la verificación.
+`experiments/twin/exp_H_hysteresis.py`, que reproduce la verificación.
 
 Consecuencia para SLGNN: `slgnn.sdf.dynamical_cylinder_omega` entrega una
 velocidad de pared incorrecta para t > 1 s, lo que afecta directamente a

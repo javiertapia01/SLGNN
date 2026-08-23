@@ -1,0 +1,37 @@
+seed: 20260729
+
+data:
+  dataset: Benchmark_2Spheres_Oblique_Collision
+  cases: [1x, 2x, 4x]
+  dt: 0.0001
+
+model:
+  hidden: 16
+  layers: 2
+  use_history: true
+  r_on: 1.05
+  r_off: 1.5
+  r_list: 2.0
+
+training:
+  one_step_iters: 900
+  batch_size: 6
+  lr: 0.002
+  weight_decay: 0.000001
+  grad_clip: 5.0
+  log_every: 100
+
+rollout:
+  iters: 120
+  horizon: 12
+  tbptt_chunk: 4
+  lr: 0.0005
+  sigma_q: 0.1
+  log_every: 30
+
+evaluation:
+  active_acceleration_threshold: 0.001
+
+output:
+  directory: results/slgnn_v2/benchmarks/benchmark_2spheres
+  checkpoint_directory: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres

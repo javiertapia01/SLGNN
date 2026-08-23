@@ -1,0 +1,47 @@
+seed: 20260730
+
+data:
+  wall_dataset: Benchmark_1Sphere_Multiple_Wall_Collision
+  wall_cases: ["10", "30", "45", "60", "90"]
+  particle_dataset: Benchmark_2Spheres_Oblique_Collision
+  particle_cases: [1x, 2x, 4x]
+  dt: 0.0001
+
+pretrained_checkpoint: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres/final_all.pt
+
+model:
+  hidden: 16
+  layers: 2
+  use_history: true
+  r_on: 1.05
+  r_off: 1.5
+  r_list: 2.0
+  g_on: 0.05
+  g_off: 0.5
+
+training:
+  one_step_iters: 700
+  batch_size: 5
+  active_probability: 0.8
+  lr_wall_heads: 0.0015
+  lr_shared: 0.0003
+  lr_particle_heads: 0.00002
+  weight_decay: 0.000001
+  grad_clip: 5.0
+  replay_weight: 0.2
+  replay_batch_size: 2
+  log_every: 100
+
+rollout:
+  iters: 100
+  horizon: 16
+  tbptt_chunk: 4
+  sigma_q: 0.1
+  log_every: 25
+
+evaluation:
+  active_acceleration_threshold: 0.001
+
+output:
+  directory: results/slgnn_v2/benchmarks/benchmark_wall_transfer
+  checkpoint_directory: checkpoints/slgnn_v2/benchmarks/benchmark_wall_transfer

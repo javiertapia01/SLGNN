@@ -14,21 +14,23 @@ data/extracted/*
 *.log
 *.egg-info/
 build/
-checkpoints/
+checkpoints/*
+!checkpoints/README.md
 # `results/*` y no `results/`: con la barra final git excluye el directorio
 # entero y ya no puede reincluir nada de dentro.
 results/*
+!results/README.md
 
 # Excepción: los resúmenes pequeños de SLGNN-v3 SÍ se versionan, porque son la
 # evidencia que respalda docs/v3/RESULTS_MVP.md. Los checkpoints (.pt), los
 # metrics.jsonl y los directorios por corrida siguen fuera.
-!results/v3_mvp/
-results/v3_mvp/*
-!results/v3_mvp/micro_overfit.json
-!results/v3_mvp/audit_temporal/
-results/v3_mvp/audit_temporal/*
-!results/v3_mvp/audit_temporal/audit.json
-!results/v3_mvp/audit_temporal/audit_summary.csv
-!results/v3_mvp/compare/
-results/v3_mvp/compare/*
-!results/v3_mvp/compare/comparison_*.json
+!results/slgnn_v3/
+results/slgnn_v3/*
+!results/slgnn_v3/micro_overfit.json
+!results/slgnn_v3/audit_temporal/
+results/slgnn_v3/audit_temporal/*
+!results/slgnn_v3/audit_temporal/audit.json
+!results/slgnn_v3/audit_temporal/audit_summary.csv
+!results/slgnn_v3/compare/
+results/slgnn_v3/compare/*
+!results/slgnn_v3/compare/comparison_*.json

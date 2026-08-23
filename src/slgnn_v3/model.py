@@ -46,7 +46,12 @@ from .diagnostics import (
     wall_transfer,
 )
 from .dissipation import DissipationHead
-from .encoder import GeometricEncoder, N_EDGE_KIN, kinematic_features
+from .encoder import (
+    GeometricEncoder,
+    N_EDGE_KIN,
+    dissipation_context_features,
+    kinematic_features,
+)
 from .graph import assert_no_cross_batch, build_candidate_graph
 from .impact import ImpactHead
 from .integrator import (
@@ -86,6 +91,14 @@ class SLGNNv3(nn.Module):
         self.head_V = PotentialHead(cfg.potential, cfg.encoder)
         self.head_Psi = DissipationHead(cfg.dissipation, cfg.encoder)
         self.head_I = ImpactHead(cfg.impact, cfg.encoder)
+        if (
+            cfg.dissipation.tangential
+            and not cfg.dissipation.state_independent_coefficients
+        ):
+            raise ValueError(
+                "Psi_tau requiere dissipation.state_independent_coefficients=True "
+                "para preservar la convexidad respecto de la velocidad."
+            )
         self.closure = ClosureHead(enabled=cfg.closure_enabled)
         if cfg.memory_enabled:
             raise NotImplementedError(
@@ -147,7 +160,11 @@ class SLGNNv3(nn.Module):
         h_node, h_edge, _ = self.encoder(contacts, particles)
         kin = kinematic_features(contacts, particles, age)
         h_V = self.proc_V(contacts, h_node, h_edge)
-        h_Psi = self.proc_Psi(contacts, h_node, h_edge, kin)
+        psi_context = (
+            dissipation_context_features(contacts, age)
+            if cfg.dissipation.state_independent_coefficients else kin
+        )
+        h_Psi = self.proc_Psi(contacts, h_node, h_edge, psi_context)
 
         # (6)(7)(8)(9) rama regular con el peso preliminar del perfil ------
         weight = self._preliminary_weight(contacts)
@@ -332,7 +349,7 @@ class SLGNNv3(nn.Module):
         de libertad y su transferencia se reporta aparte. El canal `V` no
         entra aquí porque su fuerza sale de `-grad_q V` y no de `J^T`; su
         conservación se verifica estructuralmente en
-        `tests/v3/test_symmetry.py`, donde el coste del autograd extra es
+        `tests/slgnn_v3/test_symmetry.py`, donde el coste del autograd extra es
         aceptable.
         """
         from .contact_operator import JT_times_contact_vector
@@ -382,8 +399,9 @@ class SLGNNv3(nn.Module):
             "V_total": float(reg["V"].detach()),
             "V_gravity": DISABLED,   # la gravedad es fuerza externa, no potencial
         }
-        d.dissipation = {**{k: v for k, v in reg["Psi_diag"].items()},
-                         "Psi_tau": DISABLED, "Psi_rot": DISABLED}
+        d.dissipation = {**{k: v for k, v in reg["Psi_diag"].items()}}
+        d.dissipation.setdefault("Psi_tau", DISABLED)
+        d.dissipation["Psi_rot"] = DISABLED
         d.regular = {
             "force_V_norm": float(reg["force_V"].detach().norm()),
             "force_Psi_norm": float(reg["force_Psi"].detach().norm()),

@@ -1,0 +1,103 @@
+campaign_id: slgnn-v2__S00-PP2O__S01-PW1-RP__S02-JOINT-PP2O-PW1__S02-R2-preN60__S03-N60-ZG-RP
+lineage:
+  - S00-PP2O
+  - S01-PW1-RP
+  - S02-JOINT-PP2O-PW1
+  - S02-R2-preN60
+  - S03-N60-ZG-RP
+
+parent_checkpoint: checkpoints/slgnn_v2/curriculum/S02_R2_preN60/slgnn-v2__S00-PP2O__S01-PW1-RP__S02-JOINT-PP2O-PW1__S02-R2-preN60__seeds-20260741-43/promoted-to-S03-N60-ZG-RP.pt
+parent_sha256: 8e938285c9247190e3993a139e9603d30660720b02ec63c5a7c8102e269c359b
+particle_specialist_checkpoint: checkpoints/slgnn_v2/benchmarks/benchmark_2spheres/final_all.pt
+
+seeds:
+  transfer: [20260751, 20260752, 20260753]
+  scratch: [20260761]
+
+data:
+  dataset: 60Spheres_Homogeneous_Interaction_Inside_Cuboidal_Enclosure/DATA
+  train_cases: [CASE01, CASE02, CASE03, CASE04, CASE05]
+  validation_case: CASE06
+  extrapolation_case: CASE07
+  excluded_cases: [CASE08, CASE09]
+  expected_particles: 60
+  expected_snapshots: 1501
+  dt: 1.0e-4
+  box_min_m: [0.0, 0.0, 0.0]
+  box_max_m: [0.03, 0.03, 0.03]
+  gravity_vector: [0.0, 0.0, 0.0]
+  wall_dataset: Benchmark_1Sphere_Multiple_Wall_Collision
+  wall_cases: ["10", "30", "45", "60", "90"]
+  particle_dataset: Benchmark_2Spheres_Oblique_Collision
+  particle_cases: [1x, 2x, 4x]
+
+model:
+  hidden: 16
+  layers: 2
+  use_history: true
+  r_on: 1.05
+  r_off: 1.5
+  r_list: 2.0
+  g_on: 0.05
+  g_off: 0.5
+
+optimization:
+  optimizer: AdamW
+  lr_processors: 1.0e-4
+  lr_particle_heads: 5.0e-5
+  lr_wall_heads: 5.0e-5
+  lr_material_encoder: 1.0e-5
+  rollout_lr_multiplier: 0.5
+  oscillation_decay: 0.5
+  weight_decay: 1.0e-6
+  grad_clip: 3.0
+
+sampling:
+  n60_fraction: 0.75
+  replay_fraction: 0.25
+  replay_particle_fraction: 0.5
+  replay_wall_fraction: 0.5
+  particle_case_sequence: [1x, 2x, 4x, 4x]
+  low_activity_fraction: 0.20
+  activity_threshold: 0.05
+
+curriculum:
+  warmup_iterations: 500
+  horizons: [4, 8, 16, 32, 64]
+  iterations_per_horizon: [100, 100, 100, 100, 100]
+  tbptt_chunk: 8
+  conditional_h128: true
+  h128_iterations: 50
+  h128_requires_all_transfer_stable: true
+
+noise:
+  sigma_q: 0.001
+  sigma_v: 0.005
+
+loss:
+  lambda_acceleration: 1.0
+  lambda_angular_acceleration: 1.0
+  lambda_q: 1.0
+  lambda_v: 1.0
+  lambda_w: 0.5
+  lambda_penetration: 0.1
+  lambda_passivity: 1.0
+  lambda_history: 0.1
+  lambda_l2sp: 0.001
+  rollout_time_decay: 0.99
+
+evaluation:
+  validation_every: 25
+  horizons: [100, 250, 500]
+  full_rollout: 1500
+  divergence_penetration: 2.0
+  h64_stable_max_penetration: 0.75
+  h64_stable_requires_h500: true
+  active_acceleration_threshold: 0.001
+  gate_wall_median: 0.5289
+  gate_pp_case_multiplier: 1.10
+  gate_pp4x_absolute: 1.790
+
+output:
+  checkpoint_root: checkpoints/slgnn_v2/curriculum/S03_N60_ZG_RP
+  result_root: results/slgnn_v2/curriculum/S03_N60_ZG_RP

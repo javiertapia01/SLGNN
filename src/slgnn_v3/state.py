@@ -166,7 +166,7 @@ class ContactMemoryState:
         if self.enabled:
             raise NotImplementedError(
                 "La memoria tangencial M no está implementada en el MVP normal. "
-                "Ver docs/v3/IMPLEMENTATION_STATUS.md, fase 10."
+                "Ver docs/slgnn_v3/IMPLEMENTATION_STATUS.md, fase 10."
             )
 
 

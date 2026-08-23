@@ -1,0 +1,65 @@
+# Fase posterior al MVP normal: v3-C con disipación tangencial y spin.
+#
+# Canales activos: V, Psi_n y Psi_tau. La fuerza tangencial se aplica mediante
+# J^T y por eso produce torques conservando el momento angular interno. Este
+# perfil todavía NO representa sticking/sliding ni memoria de contacto: M
+# permanece desactivada hasta la fase siguiente.
+
+model:
+  eps: 1.0e-12
+  memory_enabled: false
+  closure_enabled: false
+
+  graph:
+    pp_gap_on: 0.02
+    pp_gap_off: 0.35
+    pw_gap_on: 0.02
+    pw_gap_off: 0.35
+    skin: 0.15
+    ccd: true
+    ccd_margin: 0.0
+
+  encoder:
+    hidden: 48
+    n_material_types: 4
+    material_dim: 8
+    n_message_steps: 2
+    activation: silu
+
+  potential:
+    hidden: 48
+    f0: 1.0
+    exponent: 1.0
+    quad_nodes: 8
+    eps_unilateral: 0.02
+
+  dissipation:
+    hidden: 48
+    d0: 1.0
+    tangential: true
+    rotational: false
+    eps_tangential: 1.0e-12
+    state_independent_coefficients: true
+
+  impact:
+    hidden: 48
+    e_max: 1.0
+    kappa0: 1.0e-3
+    friction: false
+
+  solver:
+    max_iters: 30
+    eval_max_iters: 200
+    tol: 1.0e-9
+    beta: 0.2
+    kappa_floor: 1.0e-9
+    power_iters: 12
+
+  router:
+    profile: v3-C
+    g_tol: 0.0
+    g_ccd: 0.0
+    g_on: 0.0
+    g_off: 0.05
+    n_grace: 1
+    impulsive_protection: false

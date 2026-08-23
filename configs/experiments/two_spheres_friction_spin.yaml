@@ -1,0 +1,34 @@
+# Primer gate experimental de Psi_tau y spin.
+#
+# Usa el mismo split 1x/2x/4x del benchmark previo, pero ahora Delta L forma
+# parte real del objetivo para v3_c_tau. La misma supervisión se aplica a GNS
+# en cualquier comparación controlada.
+
+name: two_spheres_friction_spin
+
+data:
+  dataset: two_spheres
+  train_cases: ["1x"]
+  val_case: "2x"
+  test_cases: ["4x"]
+
+sampler:
+  quotas:
+    free: 0.25
+    pp: 0.40
+    pw: 0.0
+    mixed: 0.0
+    contact_birth: 0.30
+    high_compression: 0.05
+
+train:
+  updates: 400
+  batch_size: 4
+  lr: 1.0e-3
+  grad_clip: 1.0
+  eval_every: 50
+  log_every: 50
+  lambda_delta_p: 1.0
+  lambda_delta_L: 1.0
+
+rollout_horizons: [1, 5, 10, 25]
